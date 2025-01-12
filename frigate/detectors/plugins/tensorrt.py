@@ -1,20 +1,23 @@
+import ctypes
 import logging
 
-import ctypes
 import numpy as np
 
 try:
     import tensorrt as trt
     from cuda import cuda
 
+    TRT_VERSION = int(trt.__version__[0 : trt.__version__.find(".")])
+
     TRT_SUPPORT = True
-except ModuleNotFoundError as e:
+except ModuleNotFoundError:
     TRT_SUPPORT = False
+
+from pydantic import Field
+from typing_extensions import Literal
 
 from frigate.detectors.detection_api import DetectionApi
 from frigate.detectors.detector_config import BaseDetectorConfig
-from typing import Literal
-from pydantic import Field
 
 logger = logging.getLogger(__name__)
 
@@ -23,9 +26,6 @@ DETECTOR_KEY = "tensorrt"
 if TRT_SUPPORT:
 
     class TrtLogger(trt.ILogger):
-        def __init__(self):
-            trt.ILogger.__init__(self)
-
         def log(self, severity, msg):
             logger.log(self.getSeverity(severity), msg)
 
@@ -77,7 +77,7 @@ class TensorRtDetector(DetectionApi):
         try:
             trt.init_libnvinfer_plugins(self.trt_logger, "")
 
-            ctypes.cdll.LoadLibrary("/trt-models/libyolo_layer.so")
+            ctypes.cdll.LoadLibrary("/usr/local/lib/libyolo_layer.so")
         except OSError as e:
             logger.error(
                 "ERROR: failed to load libraries. %s",
@@ -87,20 +87,46 @@ class TensorRtDetector(DetectionApi):
         with open(model_path, "rb") as f, trt.Runtime(self.trt_logger) as runtime:
             return runtime.deserialize_cuda_engine(f.read())
 
+    def _binding_is_input(self, binding):
+        if TRT_VERSION < 10:
+            return self.engine.binding_is_input(binding)
+        else:
+            return binding == "input"
+
+    def _get_binding_dims(self, binding):
+        if TRT_VERSION < 10:
+            return self.engine.get_binding_shape(binding)
+        else:
+            return self.engine.get_tensor_shape(binding)
+
+    def _get_binding_dtype(self, binding):
+        if TRT_VERSION < 10:
+            return self.engine.get_binding_dtype(binding)
+        else:
+            return self.engine.get_tensor_dtype(binding)
+
+    def _execute(self):
+        if TRT_VERSION < 10:
+            return self.context.execute_async_v2(
+                bindings=self.bindings, stream_handle=self.stream
+            )
+        else:
+            return self.context.execute_v2(self.bindings)
+
     def _get_input_shape(self):
         """Get input shape of the TensorRT YOLO engine."""
         binding = self.engine[0]
-        assert self.engine.binding_is_input(binding)
-        binding_dims = self.engine.get_binding_shape(binding)
+        assert self._binding_is_input(binding)
+        binding_dims = self._get_binding_dims(binding)
         if len(binding_dims) == 4:
             return (
                 tuple(binding_dims[2:]),
-                trt.nptype(self.engine.get_binding_dtype(binding)),
+                trt.nptype(self._get_binding_dtype(binding)),
             )
         elif len(binding_dims) == 3:
             return (
                 tuple(binding_dims[1:]),
-                trt.nptype(self.engine.get_binding_dtype(binding)),
+                trt.nptype(self._get_binding_dtype(binding)),
             )
         else:
             raise ValueError(
@@ -114,7 +140,7 @@ class TensorRtDetector(DetectionApi):
         bindings = []
         output_idx = 0
         for binding in self.engine:
-            binding_dims = self.engine.get_binding_shape(binding)
+            binding_dims = self._get_binding_dims(binding)
             if len(binding_dims) == 4:
                 # explicit batch case (TensorRT 7+)
                 size = trt.volume(binding_dims)
@@ -125,21 +151,21 @@ class TensorRtDetector(DetectionApi):
                 raise ValueError(
                     "bad dims of binding %s: %s" % (binding, str(binding_dims))
                 )
-            nbytes = size * self.engine.get_binding_dtype(binding).itemsize
+            nbytes = size * self._get_binding_dtype(binding).itemsize
             # Allocate host and device buffers
             err, host_mem = cuda.cuMemHostAlloc(
                 nbytes, Flags=cuda.CU_MEMHOSTALLOC_DEVICEMAP
             )
             assert err is cuda.CUresult.CUDA_SUCCESS, f"cuMemAllocHost returned {err}"
             logger.debug(
-                f"Allocated Tensor Binding {binding} Memory {nbytes} Bytes ({size} * {self.engine.get_binding_dtype(binding)})"
+                f"Allocated Tensor Binding {binding} Memory {nbytes} Bytes ({size} * {self._get_binding_dtype(binding)})"
             )
             err, device_mem = cuda.cuMemAlloc(nbytes)
             assert err is cuda.CUresult.CUDA_SUCCESS, f"cuMemAlloc returned {err}"
             # Append the device buffer to device bindings.
             bindings.append(int(device_mem))
             # Append to the appropriate list.
-            if self.engine.binding_is_input(binding):
+            if self._binding_is_input(binding):
                 logger.debug(f"Input has Shape {binding_dims}")
                 inputs.append(HostDeviceMem(host_mem, device_mem, nbytes, size))
             else:
@@ -169,10 +195,8 @@ class TensorRtDetector(DetectionApi):
         ]
 
         # Run inference.
-        if not self.context.execute_async_v2(
-            bindings=self.bindings, stream_handle=self.stream
-        ):
-            logger.warn(f"Execute returned false")
+        if not self._execute():
+            logger.warning("Execute returned false")
 
         # Transfer predictions back from the GPU.
         [
@@ -195,19 +219,19 @@ class TensorRtDetector(DetectionApi):
         ]
 
     def __init__(self, detector_config: TensorRTDetectorConfig):
-        assert (
-            TRT_SUPPORT
-        ), f"TensorRT libraries not found, {DETECTOR_KEY} detector not present"
+        assert TRT_SUPPORT, (
+            f"TensorRT libraries not found, {DETECTOR_KEY} detector not present"
+        )
 
         (cuda_err,) = cuda.cuInit(0)
-        assert (
-            cuda_err == cuda.CUresult.CUDA_SUCCESS
-        ), f"Failed to initialize cuda {cuda_err}"
+        assert cuda_err == cuda.CUresult.CUDA_SUCCESS, (
+            f"Failed to initialize cuda {cuda_err}"
+        )
         err, dev_count = cuda.cuDeviceGetCount()
         logger.debug(f"Num Available Devices: {dev_count}")
-        assert (
-            detector_config.device < dev_count
-        ), f"Invalid TensorRT Device Config. Device {detector_config.device} Invalid."
+        assert detector_config.device < dev_count, (
+            f"Invalid TensorRT Device Config. Device {detector_config.device} Invalid."
+        )
         err, self.cu_ctx = cuda.cuCtxCreate(
             cuda.CUctx_flags.CU_CTX_MAP_HOST, detector_config.device
         )
@@ -231,7 +255,7 @@ class TensorRtDetector(DetectionApi):
             raise RuntimeError("fail to allocate CUDA resources") from e
 
         logger.debug("TensorRT loaded. Input shape is %s", self.input_shape)
-        logger.debug("TensorRT version is %s", trt.__version__[0])
+        logger.debug("TensorRT version is %s", TRT_VERSION)
 
     def __del__(self):
         """Free CUDA memories."""
@@ -258,14 +282,14 @@ class TensorRtDetector(DetectionApi):
             boxes, scores, classes
         """
         # filter low-conf detections and concatenate results of all yolo layers
-        detections = []
+        detection_list = []
         for o in trt_outputs:
-            dets = o.reshape((-1, 7))
-            dets = dets[dets[:, 4] * dets[:, 6] >= conf_th]
-            detections.append(dets)
-        detections = np.concatenate(detections, axis=0)
+            detections = o.reshape((-1, 7))
+            detections = detections[detections[:, 4] * detections[:, 6] >= conf_th]
+            detection_list.append(detections)
+        detection_list = np.concatenate(detection_list, axis=0)
 
-        return detections
+        return detection_list
 
     def detect_raw(self, tensor_input):
         # Input tensor has the shape of the [height, width, 3]
@@ -302,6 +326,7 @@ class TensorRtDetector(DetectionApi):
         ordered[:, 3] = np.clip(ordered[:, 3] + ordered[:, 1], 0, 1)
         # put result into the correct order and limit to top 20
         detections = ordered[:, [5, 4, 1, 0, 3, 2]][:20]
+
         # pad to 20x6 shape
         append_cnt = 20 - len(detections)
         if append_cnt > 0:

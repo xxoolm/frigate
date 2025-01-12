@@ -21,16 +21,9 @@ Some examples (model - class or model name)::
 
 """
 
-import datetime as dt
 import peewee as pw
-from playhouse.sqlite_ext import *
-from decimal import ROUND_HALF_EVEN
-from frigate.models import Recordings
 
-try:
-    import playhouse.postgres_ext as pw_pext
-except ImportError:
-    pass
+from frigate.models import Recordings
 
 SQL = pw.SQL
 
@@ -40,6 +33,9 @@ def migrate(migrator, database, fake=False, **kwargs):
         Recordings,
         objects=pw.IntegerField(null=True),
         motion=pw.IntegerField(null=True),
+    )
+    migrator.sql(
+        'CREATE INDEX "recordings_activity" ON "recordings" ("camera", "start_time" DESC, "regions")'
     )
 
 
