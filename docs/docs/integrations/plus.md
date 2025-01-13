@@ -3,15 +3,7 @@ id: plus
 title: Frigate+
 ---
 
-:::info
-
-Frigate+ is under active development and currently only offers the ability to submit your examples with annotations. Models will be available after enough examples are submitted to train a robust model. It is free to create an account and upload your examples.
-
-:::
-
-Frigate+ offers models trained from scratch and specifically designed for the way Frigate NVR analyzes video footage. They offer higher accuracy with less resources. By uploading your own labeled examples, your model can be uniquely tuned for accuracy in your specific conditions. After tuning, performance is evaluated against a broad dataset and real world examples submitted by other Frigate+ users to prevent overfitting.
-
-Custom models also include a more relevant set of objects for security cameras such as person, face, car, license plate, delivery truck, package, dog, cat, deer, and more. Interested in detecting an object unique to you? Upload examples to incorporate your own objects without worrying that you are reducing the accuracy of other object types in the model.
+For more information about how to use Frigate+ to improve your model, see the [Frigate+ docs](/plus/).
 
 ## Setup
 
@@ -27,22 +19,58 @@ Once logged in, you can generate an API key for Frigate in Settings.
 
 ### Set your API key
 
-In Frigate, you can set the `PLUS_API_KEY` environment variable to enable the `SEND TO FRIGATE+` buttons on the events page. You can set it in your Docker Compose file or in your Docker run command. Home Assistant Addon users can set it under Settings > Addons > Frigate NVR > Configuration > Options (be sure to toggle the "Show unused optional configuration options" switch).
+In Frigate, you can use an environment variable or a docker secret named `PLUS_API_KEY` to enable the `Frigate+` buttons on the Explore page. Home Assistant Addon users can set it under Settings > Addons > Frigate NVR > Configuration > Options (be sure to toggle the "Show unused optional configuration options" switch).
 
-:::caution
+:::warning
 
-You cannot use the `environment_vars` section of your configuration file to set this environment variable.
+You cannot use the `environment_vars` section of your Frigate configuration file to set this environment variable. It must be defined as an environment variable in the docker config or HA addon config.
 
 :::
 
-### Submit examples
+## Submit examples
 
-Once your API key is configured, you can submit examples directly from the events page in Frigate using the `SEND TO FRIGATE+` button.
+Once your API key is configured, you can submit examples directly from the Explore page in Frigate using the `Frigate+` button.
 
-![Send To Plus](/img/send-to-plus.png)
+:::note
+
+Snapshots must be enabled to be able to submit examples to Frigate+
+
+:::
+
+![Send To Plus](/img/plus/send-to-plus.jpg)
+
+![Submit To Plus](/img/plus/submit-to-plus.jpg)
 
 ### Annotate and verify
 
-You can view all of your submitted images at [https://plus.frigate.video](https://plus.frigate.video). Annotations can be added by clicking an image.
+You can view all of your submitted images at [https://plus.frigate.video](https://plus.frigate.video). Annotations can be added by clicking an image. For more detailed information about labeling, see the documentation on [improving your model](../plus/improving_model.md).
 
 ![Annotate](/img/annotate.png)
+
+## Use Models
+
+Once you have [requested your first model](../plus/first_model.md) and gotten your own model ID, it can be used with a special model path. No other information needs to be configured for Frigate+ models because it fetches the remaining config from Frigate+ automatically.
+
+```yaml
+model:
+  path: plus://<your_model_id>
+```
+
+:::note
+
+Model IDs are not secret values and can be shared freely. Access to your model is protected by your API key.
+
+:::
+
+Models are downloaded into the `/config/model_cache` folder and only downloaded if needed.
+
+If needed, you can override the labelmap for Frigate+ models. This is not recommended as renaming labels will break the Submit to Frigate+ feature if the labels are not available in Frigate+.
+
+```yaml
+model:
+  path: plus://<your_model_id>
+  labelmap:
+    3: animal
+    4: animal
+    5: animal
+```

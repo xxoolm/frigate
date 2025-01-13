@@ -1,6 +1,6 @@
 ---
 id: contributing
-title: Contributing
+title: Contributing To The Main Code Base
 ---
 
 ## Getting the source
@@ -33,10 +33,15 @@ Fork [blakeblackshear/frigate-hass-integration](https://github.com/blakeblackshe
 
 ### Prerequisites
 
-- [Frigate source code](#frigate-core-web-and-docs)
 - GNU make
 - Docker
-- Extra Coral device (optional, but very helpful to simulate real world performance)
+- An extra detector (Coral, OpenVINO, etc.) is optional but recommended to simulate real world performance.
+
+:::note
+
+A Coral device can only be used by a single process at a time, so an extra Coral device is recommended if using a coral for development purposes.
+
+:::
 
 ### Setup
 
@@ -62,10 +67,6 @@ cameras:
           input_args: -re -stream_loop -1 -fflags +genpts
           roles:
             - detect
-    detect:
-      height: 1080
-      width: 1920
-      fps: 5
 ```
 
 These input args tell ffmpeg to read the mp4 file in an infinite loop. You can use any valid ffmpeg input here.
@@ -79,7 +80,7 @@ Create and place these files in a `debug` folder in the root of the repo. This i
 VSCode will start the docker compose file for you and open a terminal window connected to `frigate-dev`.
 
 - Run `python3 -m frigate` to start the backend.
-- In a separate terminal window inside VS Code, change into the `web` directory and run `npm install && npm start` to start the frontend.
+- In a separate terminal window inside VS Code, change into the `web` directory and run `npm install && npm run dev` to start the frontend.
 
 #### 5. Teardown
 
@@ -93,16 +94,22 @@ The following commands are used inside the container to ensure hardware accelera
 
 **Raspberry Pi (64bit)**
 
-This should show <50% CPU in top, and ~80% CPU without `-c:v h264_v4l2m2m`.
+This should show less than 50% CPU in top, and ~80% CPU without `-c:v h264_v4l2m2m`.
 
 ```shell
 ffmpeg -c:v h264_v4l2m2m -re -stream_loop -1 -i https://streams.videolan.org/ffmpeg/incoming/720p60.mp4 -f rawvideo -pix_fmt yuv420p pipe: > /dev/null
 ```
 
-**NVIDIA**
+**NVIDIA GPU**
 
 ```shell
 ffmpeg -c:v h264_cuvid -re -stream_loop -1 -i https://streams.videolan.org/ffmpeg/incoming/720p60.mp4 -f rawvideo -pix_fmt yuv420p pipe: > /dev/null
+```
+
+**NVIDIA Jetson**
+
+```shell
+ffmpeg -c:v h264_nvmpi -re -stream_loop -1 -i https://streams.videolan.org/ffmpeg/incoming/720p60.mp4 -f rawvideo -pix_fmt yuv420p pipe: > /dev/null
 ```
 
 **VAAPI**
@@ -121,9 +128,8 @@ ffmpeg -c:v h264_qsv -re -stream_loop -1 -i https://streams.videolan.org/ffmpeg/
 
 ### Prerequisites
 
-- [Frigate source code](#frigate-core-web-and-docs)
 - All [core](#core) prerequisites _or_ another running Frigate instance locally available
-- Node.js 16
+- Node.js 20
 
 ### Making changes
 
@@ -147,9 +153,11 @@ cd web && npm install
 cd web && npm run dev
 ```
 
-#### 3a. Run the development server against a non-local instance
+##### 3a. Run the development server against a non-local instance
 
-To run the development server against a non-local instance, you will need to modify the API_HOST default return in `web/src/env.js`.
+To run the development server against a non-local instance, you will need to
+replace the `localhost` values in `vite.config.ts` with the IP address of the
+non-local backend server.
 
 #### 4. Making changes
 
@@ -178,15 +186,14 @@ npm run test
 
 ### Prerequisites
 
-- [Frigate source code](#frigate-core-web-and-docs)
-- Node.js 16
+- Node.js 20
 
 ### Making changes
 
 #### 1. Installation
 
 ```console
-npm install
+cd docs && npm install
 ```
 
 #### 2. Local Development
@@ -197,7 +204,7 @@ npm run start
 
 This command starts a local development server and open up a browser window. Most changes are reflected live without having to restart the server.
 
-The docs are built using [Docusaurus v2](https://v2.docusaurus.io). Please refer to the Docusaurus docs for more information on how to modify Frigate's documentation.
+The docs are built using [Docusaurus v3](https://docusaurus.io). Please refer to the Docusaurus docs for more information on how to modify Frigate's documentation.
 
 #### 3. Build (optional)
 
@@ -217,4 +224,14 @@ docker run --privileged --rm tonistiigi/binfmt --install all
 docker buildx create --name builder --driver docker-container --driver-opt network=host --use
 docker buildx inspect builder --bootstrap
 make push
+```
+
+## Other
+
+### Nginx
+
+When testing nginx config changes from within the dev container, the following command can be used to copy and reload the config for testing without rebuilding the container:
+
+```console
+sudo cp docker/main/rootfs/usr/local/nginx/conf/* /usr/local/nginx/conf/ && sudo /usr/local/nginx/sbin/nginx -s reload
 ```
