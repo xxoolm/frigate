@@ -235,7 +235,6 @@ jobs:
           - ✅ 启用 Registry 构建缓存
           - ✅ 并发控制避免缓存覆盖
           - ✅ 智能错误处理
-          - ✅ 安全扫描集成
           - ✅ 构建性能监控
           
           ## 📊 优化建议
@@ -266,7 +265,6 @@ jobs:
           echo "- **提交**: ${{ env.SHORT_SHA }}" >> $GITHUB_STEP_SUMMARY
           echo "- **构建时间**: ${BUILD_DURATION} 秒" >> $GITHUB_STEP_SUMMARY
           echo "- **构建缓存**: ✅ 多级缓存已启用" >> $GITHUB_STEP_SUMMARY
-          echo "- **安全扫描**: ✅ 已集成 Trivy" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 📦 镜像详情" >> $GITHUB_STEP_SUMMARY
           echo "- **镜像标签**: ghcr.io/${{ github.repository }}/frigate-n150:stable" >> $GITHUB_STEP_SUMMARY
@@ -278,31 +276,18 @@ jobs:
           echo "- ✅ 启用 Registry 构建缓存加速" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ 并发控制避免缓存覆盖" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ 智能错误处理和超时控制" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ 集成安全扫描 (Trivy)" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ 构建性能监控" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ 智能大小分析和优化建议" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ 自动生成构建报告" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 📊 后续步骤" >> $GITHUB_STEP_SUMMARY
           echo "1. 查看上方构建日志获取详细大小信息" >> $GITHUB_STEP_SUMMARY
-          echo "2. 检查安全扫描结果" >> $GITHUB_STEP_SUMMARY
+          echo "2. 查看构建日志获取详细信息" >> $GITHUB_STEP_SUMMARY
           echo "3. 下载镜像文件进行测试" >> $GITHUB_STEP_SUMMARY
           echo "4. 根据优化建议进行改进" >> $GITHUB_STEP_SUMMARY
       
       # 上传镜像作为构建产物
       - name: 上传镜像作为构建产物
         uses: actions/upload-artifact@v4
-        with:
-          name: frigate-v0.16.0-rc4-amd64
-          path: /tmp/image.tar
-          retention-days: 7
-      
-      # 上传构建报告
-      - name: 上传构建报告
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-report
-          path: build-report.md
           retention-days: 30
       
       # 构建结果通知
