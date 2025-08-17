@@ -150,7 +150,7 @@ else
         "model_fp16.onnx"
         "tokenizer.json"
         "tokenizer_config.json"
-        "vocab.txt"
+        "special_tokens_map.json"
     )
 
     # 创建必要的目录
