@@ -264,7 +264,7 @@ jobs:
           - **提交**: ${{ env.SHORT_SHA }}
           - **平台**: linux/amd64
           - **版本**: v0.16.0-rc4
-          - **构建耗时**: ${BUILD_DURATION} 秒
+          - **构建耗时**: $BUILD_DURATION 秒
           
           ## 📦 镜像信息
           - **镜像标签**: ghcr.io/${{ github.repository }}/frigate-n150:stable
@@ -341,7 +341,7 @@ jobs:
           echo "- **提交**: ${{ env.SHORT_SHA }}" >> $GITHUB_STEP_SUMMARY
           echo "- **平台**: linux/amd64" >> $GITHUB_STEP_SUMMARY
           echo "- **版本**: v0.16.0-rc4" >> $GITHUB_STEP_SUMMARY
-          echo "- **构建耗时**: ${BUILD_DURATION} 秒" >> $GITHUB_STEP_SUMMARY
+          echo "- **构建耗时**: $BUILD_DURATION 秒" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
           # 获取镜像大小信息
