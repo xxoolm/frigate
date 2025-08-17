@@ -80,7 +80,6 @@ jobs:
             frigate.tags=ghcr.io/${{ github.repository }}/frigate-n150:stable,ghcr.io/${{ github.repository }}/frigate-n150:${{ env.SHORT_SHA }}
             *.cache-from=type=registry,ref=ghcr.io/${{ github.repository }}:cache-amd64
             *.cache-to=type=registry,ref=ghcr.io/${{ github.repository }}:cache-amd64,mode=max
-            frigate.outputs=type=docker,dest=/tmp/image.tar
         # 添加超时和错误处理
         timeout-minutes: 30
         continue-on-error: false
