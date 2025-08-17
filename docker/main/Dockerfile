@@ -68,6 +68,7 @@ COPY docker/main/build_sqlite_vec.sh /deps/build_sqlite_vec.sh
 RUN --mount=type=tmpfs,target=/tmp --mount=type=tmpfs,target=/var/cache/apt \
     --mount=type=bind,source=docker/main/build_sqlite_vec.sh,target=/deps/build_sqlite_vec.sh \
     --mount=type=cache,target=/root/.ccache \
+    set -eux && \
     /deps/build_sqlite_vec.sh
 
 FROM scratch AS go2rtc
