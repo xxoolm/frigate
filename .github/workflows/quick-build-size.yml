@@ -61,10 +61,26 @@ jobs:
           echo ""
           
           echo "📦 镜像详情:"
-          docker images --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}\t{{.ID}}" | grep "frigate:test" || true
+          set +e  # 禁用错误退出
+          FRIGATE_IMAGES=$(docker images --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}\t{{.ID}}" | grep "frigate:test" || echo "未找到frigate:test镜像")
+          echo "$FRIGATE_IMAGES"
           
           echo ""
           echo "🔍 详细大小分析:"
+          
+          # 获取镜像大小
+          if docker images --format "{{.Repository}}:{{.Tag}}" | grep -q "frigate:test"; then
+            IMAGE_SIZE=$(docker images --format "{{.Size}}" | grep -v "SIZE" | head -1)
+            echo "总镜像大小: $IMAGE_SIZE"
+            
+            echo ""
+            echo "📋 层信息:"
+            docker history frigate:test-${{ env.SHORT_SHA }} --format "table {{.CreatedBy}}\t{{.Size}}" | head -10 || echo "无法获取层信息"
+          else
+            echo "总镜像大小: 未知 (镜像未找到)"
+            echo ""
+            echo "📋 层信息: 无法获取 (镜像未找到)"
+          fi
           IMAGE_SIZE=$(docker images --format "{{.Size}}" | grep -v "SIZE" | head -1 || echo "未知")
           echo "总镜像大小: $IMAGE_SIZE"
           
