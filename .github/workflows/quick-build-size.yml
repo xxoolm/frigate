@@ -121,6 +121,23 @@ jobs:
           echo -e "\n3. 磁盘空间使用情况:"
           df -h
       
+      # 确保导出目录存在
+      - name: 确保导出目录存在
+        run: |
+          echo " 确保导出目录存在..."
+          # 创建导出目录
+          sudo mkdir -p /var/lib/docker/tmp
+          sudo chmod 1777 /var/lib/docker/tmp
+          # 验证权限
+          echo "导出目录权限: $(ls -ld /var/lib/docker/tmp | awk '{print $1}')"
+          # 测试写入
+          if sudo -u nobody touch /var/lib/docker/tmp/testfile 2>/dev/null; then
+            echo "✅ 导出目录写入测试成功"
+            sudo rm -f /var/lib/docker/tmp/testfile
+          else
+            echo "❌ 导出目录写入测试失败"
+          fi
+      
       # 使用官方的setup action (参考ci.yml)
       - name: 设置 QEMU 和 Buildx
         id: setup
@@ -143,7 +160,8 @@ jobs:
             ghcr.io/${{ github.repository }}/frigate-n150:${{ env.SHORT_SHA }}
           cache-from: type=registry,ref=ghcr.io/${{ github.repository }}:cache-amd64
           cache-to: type=registry,ref=ghcr.io/${{ github.repository }}:cache-amd64,mode=max
-          outputs: type=docker,dest=/tmp/image.tar
+          # 关键修改：使用新卷上的路径
+          outputs: type=docker,dest=/var/lib/docker/tmp/image.tar
         # 添加超时和错误处理
         timeout-minutes: 30
         continue-on-error: false
@@ -192,7 +210,8 @@ jobs:
       - name: 获取并显示镜像大小
         run: |
           echo "🐳 正在加载 Docker 镜像..."
-          docker load -i /tmp/image.tar
+          # 使用新路径加载镜像
+          docker load -i /var/lib/docker/tmp/image.tar
           
           echo ""
           echo "📊 === FRIGATE DOCKER 镜像大小报告 ==="
@@ -407,3 +426,10 @@ jobs:
           name: build-report
           path: build-report.md
           retention-days: 30
+      
+      # 清理导出文件
+      - name: 清理导出文件
+        if: always()
+        run: |
+          echo " 清理导出文件..."
+          sudo rm -f /var/lib/docker/tmp/image.tar || true
