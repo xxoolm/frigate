@@ -33,20 +33,37 @@ jobs:
           echo "BUILD_START_TIME=$(date +%s)" >> $GITHUB_ENV
           echo "SHORT_SHA=${GITHUB_SHA::7}" >> $GITHUB_ENV
       
-      # 清理磁盘空间
-      - name: 清理磁盘空间
+      # 激进磁盘空间清理
+      - name: 激进磁盘空间清理
         run: |
-          echo "🧹 清理磁盘空间..."
-          # 清理 Docker 缓存
-          docker system prune -f || true
-          # 清理临时文件
-          sudo rm -rf /tmp/* || true
-          sudo rm -rf /var/tmp/* || true
-          # 清理日志文件
-          sudo find /var/log -name "*.log" -size +10M -delete || true
-          # 显示磁盘使用情况
+          echo "🧹 激进清理磁盘空间..."
+          
+          # 显示清理前状态
+          echo "📊 清理前磁盘使用情况:"
           df -h
-          echo "✅ 磁盘空间清理完成"
+          
+          # 清理 Docker 所有内容
+          docker system prune -a -f --volumes || true
+          
+          # 清理所有临时文件
+          sudo rm -rf /tmp/* /var/tmp/* /home/runner/.cache/* || true
+          
+          # 清理日志文件
+          sudo find /var/log -name "*.log" -size +1M -delete || true
+          sudo find /home/runner -name "*.log" -size +1M -delete || true
+          
+          # 清理 Git 缓存
+          sudo rm -rf /home/runner/.git* || true
+          
+          # 清理包管理器缓存
+          sudo apt-get clean || true
+          sudo rm -rf /var/cache/apt/* || true
+          
+          # 显示清理后状态
+          echo "�� 清理后磁盘使用情况:"
+          df -h
+          
+          echo "✅ 激进磁盘空间清理完成"
       
       # 使用官方的setup action (参考ci.yml)
       - name: 设置 QEMU 和 Buildx
