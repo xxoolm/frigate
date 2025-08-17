@@ -1,0 +1,105 @@
+name: Quick Build - Show Image Size
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: 'Platform to build for'
+        required: true
+        default: 'linux/amd64'
+        type: choice
+        options:
+          - linux/amd64
+          - linux/arm64
+
+jobs:
+  quick_build:
+    runs-on: ubuntu-22.04
+    name: Quick Build and Size Check
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Create version file
+        run: make version
+      
+      - name: Create short sha
+        run: echo "SHORT_SHA=${GITHUB_SHA::7}" >> $GITHUB_ENV
+      
+      - name: Build Docker image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/main/Dockerfile
+          push: false
+          load: true
+          platforms: ${{ github.event.inputs.platform }}
+          target: frigate
+          tags: frigate:test-${{ env.SHORT_SHA }}
+          outputs: type=docker,dest=/tmp/image.tar
+      
+      - name: Get and display image size
+        run: |
+          echo "🐳 Loading Docker image..."
+          docker load -i /tmp/image.tar
+          
+          echo ""
+          echo "📊 === FRIGATE DOCKER IMAGE SIZE REPORT ==="
+          echo "Repository: ${{ github.repository }}"
+          echo "Branch: ${{ github.ref_name }}"
+          echo "Commit: ${{ env.SHORT_SHA }}"
+          echo "Platform: ${{ github.event.inputs.platform }}"
+          echo "Version: v0.16.0-rc4"
+          echo ""
+          
+          echo "📦 Image Details:"
+          docker images --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}\t{{.ID}}" | grep "frigate:test"
+          
+          echo ""
+          echo "🔍 Detailed Size Analysis:"
+          IMAGE_SIZE=$(docker images --format "{{.Size}}" | grep -v "SIZE" | head -1)
+          echo "Total Image Size: $IMAGE_SIZE"
+          
+          echo ""
+          echo "📋 Layer Information:"
+          docker history frigate:test-${{ env.SHORT_SHA }} --format "table {{.CreatedBy}}\t{{.Size}}" | head -10
+          
+          echo ""
+          echo "💾 Size Comparison:"
+          echo "- Standard Frigate image: ~2-4GB"
+          echo "- With TensorRT: ~3-5GB"
+          echo "- With GPU support: ~4-6GB"
+          
+          echo ""
+          echo "✅ Build completed successfully!"
+          echo "Image tag: frigate:test-${{ env.SHORT_SHA }}"
+      
+      - name: Create summary
+        run: |
+          echo "## 🐳 Frigate v0.16.0-rc4 Docker Image Size Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📋 Build Information" >> $GITHUB_STEP_SUMMARY
+          echo "- **Repository**: ${{ github.repository }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version**: v0.16.0-rc4" >> $GITHUB_STEP_SUMMARY
+          echo "- **Platform**: ${{ github.event.inputs.platform }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit**: ${{ env.SHORT_SHA }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📦 Image Details" >> $GITHUB_STEP_SUMMARY
+          echo "- **Image Tag**: frigate:test-${{ env.SHORT_SHA }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Build Status**: ✅ Success" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🚀 Next Steps" >> $GITHUB_STEP_SUMMARY
+          echo "1. Check the build logs above for detailed size information" >> $GITHUB_STEP_SUMMARY
+          echo "2. Download the image artifact if needed" >> $GITHUB_STEP_SUMMARY
+          echo "3. Use the image for testing or deployment" >> $GITHUB_STEP_SUMMARY
+      
+      - name: Upload image as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frigate-v0.16.0-rc4-${{ github.event.inputs.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
+          path: /tmp/image.tar
+          retention-days: 7
