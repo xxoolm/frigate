@@ -82,6 +82,7 @@ jobs:
             ghcr.io/${{ github.repository }}/frigate-n150:${{ env.SHORT_SHA }}
           cache-from: type=registry,ref=ghcr.io/${{ github.repository }}:cache-amd64
           cache-to: type=registry,ref=ghcr.io/${{ github.repository }}:cache-amd64,mode=max
+          outputs: type=docker,dest=/tmp/image.tar
       
       # 记录构建完成时间
       - name: 记录构建完成时间
@@ -203,7 +204,7 @@ jobs:
           echo ""
           echo "✅ 构建成功完成!"
           echo "镜像标签: ghcr.io/${{ github.repository }}/frigate-n150:stable"
-          echo "下载命令: docker pull ghcr.io/${{ github.repository }}/frigate-n150:stable"
+          echo "下载命令: docker load -i /tmp/image.tar"
           
           # 调试信息
           echo ""
@@ -231,7 +232,7 @@ jobs:
           ## 📦 镜像信息
           - **镜像标签**: ghcr.io/${{ github.repository }}/frigate-n150:stable
           - **镜像大小**: ${IMAGE_SIZE}
-          - **下载命令**: `docker pull ghcr.io/${{ github.repository }}/frigate-n150:stable`
+          - **下载命令**: `docker load -i /tmp/image.tar`
           
           ## 🚀 技术特性
           - ✅ 使用官方 setup action
@@ -272,7 +273,7 @@ jobs:
           echo "### 📦 镜像详情" >> $GITHUB_STEP_SUMMARY
           echo "- **镜像标签**: ghcr.io/${{ github.repository }}/frigate-n150:stable" >> $GITHUB_STEP_SUMMARY
           echo "- **构建状态**: ✅ 成功" >> $GITHUB_STEP_SUMMARY
-          echo "- **下载命令**: \`docker pull ghcr.io/${{ github.repository }}/frigate-n150:stable\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **下载命令**: \`docker load -i /tmp/image.tar\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 🚀 技术改进" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ 使用官方 setup action" >> $GITHUB_STEP_SUMMARY
