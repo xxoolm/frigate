@@ -20,6 +20,17 @@ mkdir -p "$MODEL_CACHE_DIR"
 
 echo "📁 创建模型缓存目录: $MODEL_CACHE_DIR"
 
+# 文件夹大小统计函数
+show_folder_size() {
+    local folder_path="$1"
+    if [ -d "$folder_path" ]; then
+        local size=$(du -sh "$folder_path" 2>/dev/null | cut -f1)
+        echo "📁 $folder_path: $size"
+    else
+        echo "📁 $folder_path: 不存在"
+    fi
+}
+
 # 检查磁盘空间函数
 check_disk_space() {
     local required_space=$1  # in MB
@@ -47,10 +58,17 @@ download_model() {
     for ((i=1; i<=max_retries; i++)); do
         echo "🔄 尝试 $i/$max_retries: $url"
         
-        wget -q --show-progress --tries=3 --timeout=600 --continue -O "$target_path" "$url"
-        local wget_exit=$?
+        # 检查是否是 Hugging Face 链接，优先使用 curl
+        if [[ "$url" == *"huggingface.co"* ]]; then
+            echo "🔄 使用 curl 下载 Hugging Face 模型..."
+            curl -L --fail --retry 3 --retry-delay 5 -o "$target_path" "$url"
+            local download_exit=$?
+        else
+            wget -q --show-progress --tries=3 --timeout=600 --continue -O "$target_path" "$url"
+            local download_exit=$?
+        fi
         
-        if [ $wget_exit -eq 0 ]; then
+        if [ $download_exit -eq 0 ]; then
             # 添加文件完整性检查
             if [[ "$file_name" == "model_fp16.onnx" ]]; then
                 local expected_size=1688250000  # 1.6GB
@@ -71,10 +89,10 @@ download_model() {
             
             echo "✅ $model_dir/$file_name 下载完成"
             return 0
-        elif [ $wget_exit -eq 8 ]; then
+        elif [ $download_exit -eq 8 ] && [[ "$url" != *"huggingface.co"* ]]; then
             echo "⚠️  服务器错误 (exit code 8)，可能是网络问题或 Hugging Face 限流"
         else
-            echo "⚠️  wget 错误码: $wget_exit"
+            echo "⚠️  下载错误码: $download_exit"
         fi
         
         if [ $i -lt $max_retries ]; then
@@ -84,12 +102,14 @@ download_model() {
         fi
     done
     
-    # 最后尝试使用 curl
-    echo "🔄 尝试使用 curl 下载..."
-    curl -L -o "$target_path" "$url"
-    if [ $? -eq 0 ]; then
-        echo "✅ $model_dir/$file_name 通过 curl 下载完成"
-        return 0
+    # 最后尝试使用 curl (如果不是 Hugging Face 链接)
+    if [[ "$url" != *"huggingface.co"* ]]; then
+        echo "🔄 尝试使用 curl 下载..."
+        curl -L -o "$target_path" "$url"
+        if [ $? -eq 0 ]; then
+            echo "✅ $model_dir/$file_name 通过 curl 下载完成"
+            return 0
+        fi
     fi
     
     echo "❌ $model_dir/$file_name 下载失败"
@@ -248,11 +268,12 @@ echo "📁 === 文件夹大小统计 ==="
 show_folder_size "$MODEL_CACHE_DIR"
 echo ""
 for model_dir in "jinaai/jina-clip-v1" "jinaai/jina-clip-v2" "facedet" "face_embedding" "yolov9_license_plate" "paddleocr-onnx" "openvino/ort" "bird"; do
-    show_folder_size "$MODEL_CACHE_DIR/$model_dir"
+    if [ -d "$MODEL_CACHE_DIR/$model_dir" ]; then
+        show_folder_size "$MODEL_CACHE_DIR/$model_dir"
+    fi
 done
 
-
-# 7. 设置权限
+# 8. 设置权限
 echo "🔐 设置文件权限..."
 chmod -R 755 "$MODEL_CACHE_DIR"
 
