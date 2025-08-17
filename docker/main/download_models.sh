@@ -163,13 +163,14 @@ if check_disk_space 500; then
     download_model "facedet" "landmarkdet.yaml" "https://github.com/NickM-27/facenet-onnx/releases/download/v1.0/landmarkdet.yaml" || echo "⚠️ landmarkdet.yaml 下载失败，继续..."
 
     # 人脸嵌入模型 (Large - ArcFace)
-    download_model "face_embedding" "arcface.onnx" "https://github.com/NickM-27/facenet-onnx/releases/download/v1.0/arcface.onnx" || echo "⚠️ arcface.onnx 下载失败，继续..."
+    download_model "facedet" "arcface.onnx" "https://github.com/NickM-27/facenet-onnx/releases/download/v1.0/arcface.onnx" || echo "⚠️ arcface.onnx 下载失败，继续..."
 else
     echo "⚠️  跳过人脸识别模型下载（空间不足）"
     # 创建空的模型文件
     echo "{}" > "$MODEL_CACHE_DIR/facedet/facedet.onnx"
     echo "{}" > "$MODEL_CACHE_DIR/facedet/landmarkdet.yaml"
-    echo "{}" > "$MODEL_CACHE_DIR/face_embedding/arcface.onnx"
+    echo "{}" > "$MODEL_CACHE_DIR/facedet/facenet.tflite"
+    echo "{}" > "$MODEL_CACHE_DIR/facedet/arcface.onnx"
 fi
 
 # 3. 车牌识别模型 - 完整版本
