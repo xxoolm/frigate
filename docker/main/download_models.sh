@@ -290,3 +290,8 @@ echo "   - 人脸识别: Large (ArcFace + 检测模型)"
 echo "   - 车牌识别: 完整LPR模型集"
 echo "   - 鸟类分类: 完整分类模型"
 echo "   - OpenVINO: 支持ORT模型"
+
+# 清理下载脚本和临时文件
+echo " 清理下载脚本和临时文件..."
+rm -f /download_models.sh
+rm -rf /tmp/*
