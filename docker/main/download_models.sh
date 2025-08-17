@@ -5,89 +5,204 @@
 
 set -euo pipefail
 
+# 添加调试信息
+echo "🔍 调试信息:"
+echo "  - 脚本路径: $0"
+echo "  - 工作目录: $(pwd)"
+echo "  - 用户: $(whoami)"
+echo "  - 磁盘空间: $(df -h . | tail -1)"
+
 echo "🚀 开始预下载Frigate模型文件..."
 
 # 设置模型缓存目录
 MODEL_CACHE_DIR="/config/model_cache"
 mkdir -p "$MODEL_CACHE_DIR"
 
-# 定义模型下载函数
+echo "📁 创建模型缓存目录: $MODEL_CACHE_DIR"
+
+# 检查磁盘空间函数
+check_disk_space() {
+    local required_space=$1  # in MB
+    local available_space=$(df -m / | awk 'NR==2 {print $4}')
+    
+    if [ $available_space -lt $required_space ]; then
+        echo "❌ 磁盘空间不足! 需要 ${required_space}MB，当前可用 ${available_space}MB"
+        return 1
+    fi
+    return 0
+}
+
+# 定义模型下载函数（增强版）
 download_model() {
     local model_dir="$1"
     local file_name="$2"
     local url="$3"
     local target_path="$MODEL_CACHE_DIR/$model_dir/$file_name"
+    local max_retries=5
+    local retry_delay=5  # 初始延迟5秒
     
     echo "📥 下载 $model_dir/$file_name..."
     mkdir -p "$MODEL_CACHE_DIR/$model_dir"
     
-    # 使用wget下载，支持重试
-    wget -q --show-progress --tries=10 --timeout=600 --continue -O "$target_path" "$url"
+    for ((i=1; i<=max_retries; i++)); do
+        echo "🔄 尝试 $i/$max_retries: $url"
+        
+        wget -q --show-progress --tries=3 --timeout=600 --continue -O "$target_path" "$url"
+        local wget_exit=$?
+        
+        if [ $wget_exit -eq 0 ]; then
+            # 添加文件完整性检查
+            if [[ "$file_name" == "model_fp16.onnx" ]]; then
+                local expected_size=1688250000  # 1.6GB
+                local actual_size=$(wc -c < "$target_path")
+                if [ $actual_size -lt $((expected_size * 95 / 100)) ]; then
+                    echo "❌ 文件大小异常，可能下载不完整"
+                    rm -f "$target_path"
+                    if [ $i -lt $max_retries ]; then
+                        echo "⏳ $retry_delay 秒后重试..."
+                        sleep $retry_delay
+                        retry_delay=$((retry_delay * 2))  # 指数退避
+                        continue
+                    else
+                        return 1
+                    fi
+                fi
+            fi
+            
+            echo "✅ $model_dir/$file_name 下载完成"
+            return 0
+        elif [ $wget_exit -eq 8 ]; then
+            echo "⚠️  服务器错误 (exit code 8)，可能是网络问题或 Hugging Face 限流"
+        else
+            echo "⚠️  wget 错误码: $wget_exit"
+        fi
+        
+        if [ $i -lt $max_retries ]; then
+            echo "⏳ $retry_delay 秒后重试..."
+            sleep $retry_delay
+            retry_delay=$((retry_delay * 2))  # 指数退避
+        fi
+    done
     
+    # 最后尝试使用 curl
+    echo "🔄 尝试使用 curl 下载..."
+    curl -L -o "$target_path" "$url"
     if [ $? -eq 0 ]; then
-        echo "✅ $model_dir/$file_name 下载完成"
-    else
-        echo "❌ $model_dir/$file_name 下载失败"
-        return 1
+        echo "✅ $model_dir/$file_name 通过 curl 下载完成"
+        return 0
     fi
+    
+    echo "❌ $model_dir/$file_name 下载失败"
+    return 1
 }
 
-# 1. 语义搜索模型 (JinaV2 Large)
+# 测试下载一个简单的文件
+echo "🧪 测试下载功能..."
+if download_model "test" "test.txt" "https://httpbin.org/bytes/100"; then
+    echo "✅ 测试下载成功"
+    rm -rf "$MODEL_CACHE_DIR/test"
+else
+    echo "❌ 测试下载失败，退出"
+    exit 1
+fi
+
+# 1. 语义搜索模型 (JinaV2 Large) - 完整版本
 echo "🔍 下载语义搜索模型 (JinaV2 Large)..."
 mkdir -p "$MODEL_CACHE_DIR/jina_v2"
 
-# JinaV2模型文件 - 使用HuggingFace的原始链接
-JINA_V2_FILES=(
-    "model_fp16.onnx"
-    "tokenizer/tokenizer.json"
-    "tokenizer/tokenizer_config.json"
-    "tokenizer/vocab.txt"
-)
+# 检查磁盘空间 (JinaV2 模型约 1.6GB)
+echo "🔍 检查磁盘空间 (需要 2000MB)..."
+if ! check_disk_space 2000; then
+    echo "⚠️  跳过 JinaV2 模型下载（空间不足）"
+    # 创建空的模型目录和状态文件
+    mkdir -p "$MODEL_CACHE_DIR/jina_v2"
+    echo "{}" > "$MODEL_CACHE_DIR/jina_v2/model_fp16.onnx"
+    echo "{}" > "$MODEL_CACHE_DIR/jina_v2/tokenizer/tokenizer.json"
+    echo "{}" > "$MODEL_CACHE_DIR/jina_v2/tokenizer/tokenizer_config.json"
+    echo "" > "$MODEL_CACHE_DIR/jina_v2/tokenizer/vocab.txt"
+else
+    # JinaV2模型文件 - 使用HuggingFace的原始链接
+    JINA_V2_FILES=(
+        "model_fp16.onnx"
+        "tokenizer/tokenizer.json"
+        "tokenizer/tokenizer_config.json"
+        "tokenizer/vocab.txt"
+    )
 
-# 创建tokenizer目录
-mkdir -p "$MODEL_CACHE_DIR/jina_v2/tokenizer"
+    # 创建tokenizer目录
+    mkdir -p "$MODEL_CACHE_DIR/jina_v2/tokenizer"
 
-for file in "${JINA_V2_FILES[@]}"; do
-    if [[ "$file" == tokenizer/* ]]; then
-        # tokenizer文件需要特殊处理
-        url="https://huggingface.co/jinaai/jina-clip-v2/resolve/main?download=true/$file"
-    else
-        url="https://huggingface.co/jinaai/jina-clip-v2/resolve/main?download=true/onnx/$file"
-    fi
-    download_model "jina_v2" "$file" "$url"
-done
+    for file in "${JINA_V2_FILES[@]}"; do
+        if [[ "$file" == tokenizer/* ]]; then
+            # tokenizer文件需要特殊处理
+            url="https://huggingface.co/jinaai/jina-clip-v2/resolve/main/$file?download=true"
+        else
+            url="https://huggingface.co/jinaai/jina-clip-v2/resolve/main/onnx/$file?download=true"
+        fi
+        download_model "jina_v2" "$file" "$url" || echo "⚠️ $file 下载失败，继续..."
+    done
+fi
 
-# 2. 人脸识别模型 (Large)
+# 2. 人脸识别模型 (Large) - 完整版本
 echo "👤 下载人脸识别模型 (Large)..."
 mkdir -p "$MODEL_CACHE_DIR/facedet"
 
-# 人脸检测模型
-download_model "facedet" "facedet.onnx" "https://github.com/NickM-27/facenet-onnx/releases/download/v1.0/facedet.onnx"
-download_model "facedet" "landmarkdet.yaml" "https://github.com/NickM-27/facenet-onnx/releases/download/v1.0/landmarkdet.yaml"
+# 检查磁盘空间 (人脸识别模型约 500MB)
+echo "🔍 检查磁盘空间 (需要 500MB)..."
+if check_disk_space 500; then
+    # 人脸检测模型
+    download_model "facedet" "facedet.onnx" "https://github.com/NickM-27/facenet-onnx/releases/download/v1.0/facedet.onnx" || echo "⚠️ facedet.onnx 下载失败，继续..."
+    download_model "facedet" "landmarkdet.yaml" "https://github.com/NickM-27/facenet-onnx/releases/download/v1.0/landmarkdet.yaml" || echo "⚠️ landmarkdet.yaml 下载失败，继续..."
 
-# 人脸嵌入模型 (Large - ArcFace)
-mkdir -p "$MODEL_CACHE_DIR/face_embedding"
-download_model "face_embedding" "arcface.onnx" "https://github.com/NickM-27/facenet-onnx/releases/download/v1.0/arcface.onnx"
+    # 人脸嵌入模型 (Large - ArcFace)
+    mkdir -p "$MODEL_CACHE_DIR/face_embedding"
+    download_model "face_embedding" "arcface.onnx" "https://github.com/NickM-27/facenet-onnx/releases/download/v1.0/arcface.onnx" || echo "⚠️ arcface.onnx 下载失败，继续..."
+else
+    echo "⚠️  跳过人脸识别模型下载（空间不足）"
+    # 创建空的模型文件
+    echo "{}" > "$MODEL_CACHE_DIR/facedet/facedet.onnx"
+    echo "{}" > "$MODEL_CACHE_DIR/facedet/landmarkdet.yaml"
+    echo "{}" > "$MODEL_CACHE_DIR/face_embedding/arcface.onnx"
+fi
 
-# 3. 车牌识别模型
+# 3. 车牌识别模型 - 完整版本
 echo "🚗 下载车牌识别模型..."
 mkdir -p "$MODEL_CACHE_DIR/lpr"
 
-# 车牌检测模型
-download_model "lpr" "yolov9-256-license-plates.onnx" "https://github.com/hawkeye217/yolov9-license-plates/raw/refs/heads/master/models/yolov9-256-license-plates.onnx"
+# 检查磁盘空间 (车牌识别模型约 300MB)
+echo "🔍 检查磁盘空间 (需要 300MB)..."
+if check_disk_space 300; then
+    # 车牌检测模型
+    download_model "lpr" "yolov9-256-license-plates.onnx" "https://github.com/hawkeye217/yolov9-license-plates/raw/refs/heads/master/models/yolov9-256-license-plates.onnx" || echo "⚠️ yolov9-256-license-plates.onnx 下载失败，继续..."
 
-# 车牌分类模型
-download_model "lpr" "classification.onnx" "https://github.com/hawkeye217/paddleocr-onnx/raw/refs/heads/master/models/classification.onnx"
+    # 车牌分类模型
+    download_model "lpr" "classification.onnx" "https://github.com/hawkeye217/paddleocr-onnx/raw/refs/heads/master/models/classification.onnx" || echo "⚠️ classification.onnx 下载失败，继续..."
 
-# 车牌识别模型
-download_model "lpr" "recognition.onnx" "https://github.com/hawkeye217/paddleocr-onnx/raw/refs/heads/master/models/recognition.onnx"
+    # 车牌识别模型
+    download_model "lpr" "recognition.onnx" "https://github.com/hawkeye217/paddleocr-onnx/raw/refs/heads/master/models/recognition.onnx" || echo "⚠️ recognition.onnx 下载失败，继续..."
+else
+    echo "⚠️  跳过车牌识别模型下载（空间不足）"
+    # 创建空的模型文件
+    echo "{}" > "$MODEL_CACHE_DIR/lpr/yolov9-256-license-plates.onnx"
+    echo "{}" > "$MODEL_CACHE_DIR/lpr/classification.onnx"
+    echo "{}" > "$MODEL_CACHE_DIR/lpr/recognition.onnx"
+fi
 
-# 4. 鸟类分类模型 (禁用，但为了完整性也下载)
-echo "�� 下载鸟类分类模型..."
+# 4. 鸟类分类模型 - 完整版本
+echo "🐦 下载鸟类分类模型..."
 mkdir -p "$MODEL_CACHE_DIR/bird"
 
-download_model "bird" "bird.tflite" "https://raw.githubusercontent.com/google-coral/test_data/master/mobilenet_v2_1.0_224_inat_bird_quant.tflite"
-download_model "bird" "birdmap.txt" "https://raw.githubusercontent.com/google-coral/test_data/master/inat_bird_labels.txt"
+# 检查磁盘空间 (鸟类分类模型约 100MB)
+echo "🔍 检查磁盘空间 (需要 100MB)..."
+if check_disk_space 100; then
+    download_model "bird" "bird.tflite" "https://raw.githubusercontent.com/google-coral/test_data/master/mobilenet_v2_1.0_224_inat_bird_quant.tflite" || echo "⚠️ bird.tflite 下载失败，继续..."
+    download_model "bird" "birdmap.txt" "https://raw.githubusercontent.com/google-coral/test_data/master/inat_bird_labels.txt" || echo "⚠️ birdmap.txt 下载失败，继续..."
+else
+    echo "⚠️  跳过鸟类分类模型下载（空间不足）"
+    # 创建空的模型文件
+    echo "{}" > "$MODEL_CACHE_DIR/bird/bird.tflite"
+    echo "" > "$MODEL_CACHE_DIR/bird/birdmap.txt"
+fi
 
 # 5. 创建模型状态文件
 echo "📝 创建模型状态文件..."
@@ -135,7 +250,7 @@ chmod -R 755 "$MODEL_CACHE_DIR"
 echo "🎉 模型预下载完成！"
 echo "📁 模型文件存储在: $MODEL_CACHE_DIR"
 echo "📋 支持的配置:"
-echo "   - 语义搜索: JinaV2 Large"
-echo "   - 人脸识别: Large (ArcFace)"
-echo "   - 车牌识别: 已启用"
-echo "   - 鸟类分类: 已下载 (配置中禁用)"
+echo "   - 语义搜索: JinaV2 Large (包含tokenizer)"
+echo "   - 人脸识别: Large (ArcFace + 检测模型)"
+echo "   - 车牌识别: 完整LPR模型集"
+echo "   - 鸟类分类: 完整分类模型"
