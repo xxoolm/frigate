@@ -124,11 +124,6 @@ echo "🔍 下载语义搜索模型 (JinaV2 Large)..."
 echo "🔍 检查磁盘空间 (需要 2000MB)..."
 if ! check_disk_space 2000; then
     echo "⚠️  跳过 JinaV2 模型下载（空间不足）"
-    # 创建空的模型目录和状态文件
-    echo "{}" > "$MODEL_CACHE_DIR/jinaai/jina-clip-v2/model_fp16.onnx"
-    echo "{}" > "$MODEL_CACHE_DIR/jinaai/jina-clip-v2/tokenizer/tokenizer.json"
-    echo "{}" > "$MODEL_CACHE_DIR/jinaai/jina-clip-v2/tokenizer/tokenizer_config.json"
-    echo "" > "$MODEL_CACHE_DIR/jinaai/jina-clip-v2/tokenizer/vocab.txt"
 else
     # JinaV2模型文件 - 使用HuggingFace的原始链接
     JINA_V2_FILES=(
@@ -167,11 +162,6 @@ if check_disk_space 500; then
     download_model "facedet" "arcface.onnx" "https://github.com/NickM-27/facenet-onnx/releases/download/v1.0/arcface.onnx" || echo "⚠️ arcface.onnx 下载失败，继续..."
 else
     echo "⚠️  跳过人脸识别模型下载（空间不足）"
-    # 创建空的模型文件
-    echo "{}" > "$MODEL_CACHE_DIR/facedet/facedet.onnx"
-    echo "{}" > "$MODEL_CACHE_DIR/facedet/landmarkdet.yaml"
-    echo "{}" > "$MODEL_CACHE_DIR/facedet/facenet.tflite"
-    echo "{}" > "$MODEL_CACHE_DIR/facedet/arcface.onnx"
 fi
 
 # 3. 车牌识别模型 - 完整版本
@@ -184,8 +174,6 @@ if check_disk_space 300; then
     download_model "yolov9_license_plate" "yolov9-256-license-plates.onnx" "https://github.com/hawkeye217/yolov9-license-plates/raw/refs/heads/master/models/yolov9-256-license-plates.onnx" || echo "⚠️ yolov9-256-license-plates.onnx 下载失败，继续..."
 else
     echo "⚠️  跳过车牌检测模型下载（空间不足）"
-    # 创建空的模型文件
-    echo "{}" > "$MODEL_CACHE_DIR/yolov9_license_plate/yolov9-256-license-plates.onnx"
 fi
 
 # 车牌OCR模型
@@ -201,9 +189,6 @@ if check_disk_space 200; then
     download_model "paddleocr-onnx" "recognition.onnx" "https://github.com/hawkeye217/paddleocr-onnx/raw/refs/heads/master/models/recognition.onnx" || echo "⚠️ recognition.onnx 下载失败，继续..."
 else
     echo "⚠️  跳过车牌OCR模型下载（空间不足）"
-    # 创建空的模型文件
-    echo "{}" > "$MODEL_CACHE_DIR/paddleocr-onnx/classification.onnx"
-    echo "{}" > "$MODEL_CACHE_DIR/paddleocr-onnx/recognition.onnx"
 fi
 
 # 4. 鸟类分类模型 - 完整版本
@@ -216,9 +201,6 @@ if check_disk_space 100; then
     download_model "bird" "birdmap.txt" "https://raw.githubusercontent.com/google-coral/test_data/master/inat_bird_labels.txt" || echo "⚠️ birdmap.txt 下载失败，继续..."
 else
     echo "⚠️  跳过鸟类分类模型下载（空间不足）"
-    # 创建空的模型文件
-    echo "{}" > "$MODEL_CACHE_DIR/bird/bird.tflite"
-    echo "" > "$MODEL_CACHE_DIR/bird/birdmap.txt"
 fi
 
 # 5. 创建模型状态文件
