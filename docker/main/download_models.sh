@@ -161,6 +161,7 @@ if check_disk_space 500; then
     # 人脸检测模型
     download_model "facedet" "facedet.onnx" "https://github.com/NickM-27/facenet-onnx/releases/download/v1.0/facedet.onnx" || echo "⚠️ facedet.onnx 下载失败，继续..."
     download_model "facedet" "landmarkdet.yaml" "https://github.com/NickM-27/facenet-onnx/releases/download/v1.0/landmarkdet.yaml" || echo "⚠️ landmarkdet.yaml 下载失败，继续..."
+    download_model "facedet" "facenet.tflite" "https://github.com/NickM-27/facenet-onnx/releases/download/v1.0/facenet.tflite" || echo "⚠️ facenet.tflite 下载失败，继续..."
 
     # 人脸嵌入模型 (Large - ArcFace)
     download_model "facedet" "arcface.onnx" "https://github.com/NickM-27/facenet-onnx/releases/download/v1.0/arcface.onnx" || echo "⚠️ arcface.onnx 下载失败，继续..."
