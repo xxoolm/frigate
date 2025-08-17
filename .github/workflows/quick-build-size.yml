@@ -61,6 +61,7 @@ jobs:
           echo ""
           
           echo "📦 镜像详情:"
+          if docker images --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}\t{{.ID}}" | grep "frigate:test"; then
           docker images --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}\t{{.ID}}" | grep "frigate:test"
           
           echo ""
