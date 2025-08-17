@@ -148,7 +148,9 @@ else
     # JinaV2模型文件 - 使用HuggingFace的原始链接
     JINA_V2_FILES=(
         "model_fp16.onnx"
-        "tokenizer"  # 使用 AutoTokenizer 自动下载所有必要的文件
+        "tokenizer.json"
+        "tokenizer_config.json"
+        "special_tokens_map.json"
     )
 
     # 创建必要的目录
@@ -159,11 +161,14 @@ else
         if [[ "$file" == *.onnx ]]; then
             # 模型文件在 onnx/ 目录下
             url="https://huggingface.co/jinaai/jina-clip-v2/resolve/main/onnx/$file?download=true"
-            download_model "jinaai/jina-clip-v2" "$file" "$url" || echo "⚠️ $file 下载失败，继续..."
-        elif [[ "$file" == "tokenizer" ]]; then
-            # 特殊处理：tokenizer 由 AutoTokenizer 自动下载
-            echo "🔄 tokenizer 将由应用程序自动下载"
+        else
+            # tokenizer 文件在根目录
+            url="https://huggingface.co/jinaai/jina-clip-v2/resolve/main/$file?download=true"
         fi
+        
+        # 下载到本地的 tokenizer/ 目录
+        local_target_path="tokenizer/$file"
+        download_model "jinaai/jina-clip-v2" "$local_target_path" "$url" || echo "⚠️ $file 下载失败，继续..."
     done
 fi
 
