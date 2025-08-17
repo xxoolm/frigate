@@ -33,37 +33,32 @@ jobs:
           echo "BUILD_START_TIME=$(date +%s)" >> $GITHUB_ENV
           echo "SHORT_SHA=${GITHUB_SHA::7}" >> $GITHUB_ENV
       
-      # 激进磁盘空间清理
-      - name: 激进磁盘空间清理
+      # 优化磁盘空间清理 (参考官方策略)
+      - name: 优化磁盘空间清理
         run: |
-          echo "🧹 激进清理磁盘空间..."
+          echo "🧹 优化磁盘空间清理..."
           
           # 显示清理前状态
-          echo "📊 清理前磁盘使用情况:"
+          echo "�� 清理前磁盘使用情况:"
           df -h
           
-          # 清理 Docker 所有内容
-          docker system prune -a -f --volumes || true
+          # 清理 Docker 缓存 (保留基础镜像)
+          docker system prune -f || true
           
-          # 清理所有临时文件
-          sudo rm -rf /tmp/* /var/tmp/* /home/runner/.cache/* || true
+          # 清理临时文件
+          sudo rm -rf /tmp/* /var/tmp/* || true
           
-          # 清理日志文件
-          sudo find /var/log -name "*.log" -size +1M -delete || true
-          sudo find /home/runner -name "*.log" -size +1M -delete || true
-          
-          # 清理 Git 缓存
-          sudo rm -rf /home/runner/.git* || true
+          # 清理大日志文件
+          sudo find /var/log -name "*.log" -size +5M -delete || true
           
           # 清理包管理器缓存
           sudo apt-get clean || true
-          sudo rm -rf /var/cache/apt/* || true
           
           # 显示清理后状态
-          echo "�� 清理后磁盘使用情况:"
+          echo "📊 清理后磁盘使用情况:"
           df -h
           
-          echo "✅ 激进磁盘空间清理完成"
+          echo "✅ 优化磁盘空间清理完成"
       
       # 使用官方的setup action (参考ci.yml)
       - name: 设置 QEMU 和 Buildx
@@ -246,7 +241,7 @@ jobs:
           
           ## 🚀 技术特性
           - ✅ 使用官方 setup action
-          - ✅ 启用多级构建缓存
+          - ✅ 启用 Registry 构建缓存
           - ✅ 并发控制避免缓存覆盖
           - ✅ 智能错误处理
           - ✅ 安全扫描集成
@@ -289,7 +284,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 🚀 技术改进" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ 使用官方 setup action" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ 启用多级构建缓存加速" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ 启用 Registry 构建缓存加速" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ 并发控制避免缓存覆盖" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ 智能错误处理和超时控制" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ 集成安全扫描 (Trivy)" >> $GITHUB_STEP_SUMMARY
