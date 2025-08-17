@@ -67,28 +67,20 @@ jobs:
         with:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
-      # 构建并推送 Docker 镜像 (使用官方的最佳实践)
+      # 构建并推送 Docker 镜像 (使用 bake-action 优化)
       - name: 构建并推送 Docker 镜像
         id: build
-        uses: docker/build-push-action@v5
+        uses: docker/bake-action@v6
         with:
-          context: .
-          file: docker/main/Dockerfile
+          source: .
           push: true
-          platforms: linux/amd64
-          target: frigate
-          tags: |
-            ghcr.io/${{ github.repository }}/frigate-n150:stable
-            ghcr.io/${{ github.repository }}/frigate-n150:${{ env.SHORT_SHA }}
-          # 使用改进的构建缓存策略
-          cache-from: |
-            type=registry,ref=${{ steps.setup.outputs.cache-name }}-amd64
-            type=gha
-          cache-to: |
-            type=registry,ref=${{ steps.setup.outputs.cache-name }}-amd64,mode=max
-            type=gha,mode=max
-          # 输出镜像到本地文件
-          outputs: type=docker,dest=/tmp/image.tar
+          targets: frigate
+          files: docker/standard/standard.hcl
+          set: |
+            frigate.tags=ghcr.io/${{ github.repository }}/frigate-n150:stable,ghcr.io/${{ github.repository }}/frigate-n150:${{ env.SHORT_SHA }}
+            *.cache-from=type=registry,ref=ghcr.io/${{ github.repository }}:cache-amd64
+            *.cache-to=type=registry,ref=ghcr.io/${{ github.repository }}:cache-amd64,mode=max
+            frigate.outputs=type=docker,dest=/tmp/image.tar
         # 添加超时和错误处理
         timeout-minutes: 30
         continue-on-error: false
