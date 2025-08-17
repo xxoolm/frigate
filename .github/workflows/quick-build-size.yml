@@ -33,6 +33,21 @@ jobs:
           echo "BUILD_START_TIME=$(date +%s)" >> $GITHUB_ENV
           echo "SHORT_SHA=${GITHUB_SHA::7}" >> $GITHUB_ENV
       
+      # 清理磁盘空间
+      - name: 清理磁盘空间
+        run: |
+          echo "🧹 清理磁盘空间..."
+          # 清理 Docker 缓存
+          docker system prune -f || true
+          # 清理临时文件
+          sudo rm -rf /tmp/* || true
+          sudo rm -rf /var/tmp/* || true
+          # 清理日志文件
+          sudo find /var/log -name "*.log" -size +10M -delete || true
+          # 显示磁盘使用情况
+          df -h
+          echo "✅ 磁盘空间清理完成"
+      
       # 使用官方的setup action (参考ci.yml)
       - name: 设置 QEMU 和 Buildx
         id: setup
