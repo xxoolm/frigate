@@ -58,6 +58,7 @@ git checkout ${PYSQLITE3_VERSION}
 # create a self-contained extension module.
 cp "../sqlite/sqlite3.c" ./
 cp "../sqlite/sqlite3.h" ./
+cp "../sqlite/sqlite3.h" src/
 
 # Build the extension.
 python3 setup.py build
