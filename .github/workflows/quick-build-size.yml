@@ -64,19 +64,23 @@ jobs:
           # 创建临时目录在 Docker 卷上
           sudo mkdir -p /var/lib/docker/tmp
           sudo chmod 1777 /var/lib/docker/tmp
-          # 设置临时目录环境变量
+          
+          # 设置临时目录环境变量 (将在后续步骤生效)
           echo "TMPDIR=/var/lib/docker/tmp" >> $GITHUB_ENV
           echo "TEMP=/var/lib/docker/tmp" >> $GITHUB_ENV
           echo "TMP=/var/lib/docker/tmp" >> $GITHUB_ENV
-          # 同时重定向其他可能的临时目录
-          sudo mkdir -p /var/lib/docker/var-tmp
-          sudo chmod 1777 /var/lib/docker/var-tmp
-          echo "RUNNER_TEMP=/var/lib/docker/var-tmp" >> $GITHUB_ENV
-          echo "RUNNER_TOOL_CACHE=/var/lib/docker/var-tmp" >> $GITHUB_ENV
-          # 验证设置
-          echo "临时目录: $TMPDIR"
-          echo "Runner 临时目录: $RUNNER_TEMP"
-          df -h | grep docker
+          
+          # 显示说明信息（注意：这些变量在当前步骤不可用）
+          echo "✅ 临时目录已设置为 /var/lib/docker/tmp (将在后续步骤生效)"
+          echo "ℹ️  注意：RUNNER_TEMP 和 RUNNER_TOOL_CACHE 是 GitHub Actions 特殊环境变量，无法覆盖"
+          echo "ℹ️  GitHub Actions 会继续使用 $RUNNER_TEMP 作为其工作目录"
+          
+          # 安全地显示 Docker 卷信息
+          if df -h | grep -q docker; then
+            df -h | grep docker
+          else
+            echo "ℹ️  未找到 Docker 卷信息"
+          fi
       
       # 配置 BuildKit GC 策略
       - name: 配置 BuildKit GC 策略
@@ -107,7 +111,11 @@ jobs:
           echo "1. 临时目录位置:"
           echo "   TMPDIR=$TMPDIR"
           echo "   RUNNER_TEMP=$RUNNER_TEMP"
-          echo "   $(df -h $TMPDIR)"
+          if [ -n "$TMPDIR" ]; then
+            df -h "$TMPDIR" 2>/dev/null || echo "无法获取 TMPDIR 磁盘信息"
+          else
+            echo "TMPDIR 未设置或在当前步骤不可用"
+          fi
           
           echo -e "\n2. BuildKit 配置:"
           sudo cat /etc/buildkit/buildkitd.toml
@@ -159,10 +167,18 @@ jobs:
           df -h
           echo ""
           echo "临时目录使用情况:"
-          du -sh $TMPDIR || echo "临时目录不可用"
+          if [ -n "$TMPDIR" ]; then
+            du -sh "$TMPDIR" 2>/dev/null || echo "无法获取临时目录使用情况"
+          else
+            echo "TMPDIR 未设置"
+          fi
           echo ""
           echo "Docker 卷使用情况:"
-          df -h | grep docker || echo "Docker 卷不可用"
+          if df -h | grep -q docker; then
+            df -h | grep docker
+          else
+            echo "Docker 卷不可用"
+          fi
       
       # 安全扫描（已移除以避免磁盘空间不足）
       # - name: 快速安全扫描
