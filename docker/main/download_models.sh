@@ -3,7 +3,7 @@
 # 模型预下载脚本
 # 根据配置下载所需的模型文件到模型缓存目录
 
-set -e
+set -euo pipefail
 
 echo "🚀 开始预下载Frigate模型文件..."
 
@@ -22,7 +22,7 @@ download_model() {
     mkdir -p "$MODEL_CACHE_DIR/$model_dir"
     
     # 使用wget下载，支持重试
-    wget -q --show-progress --tries=3 --timeout=30 -O "$target_path" "$url"
+    wget -q --show-progress --tries=10 --timeout=600 --continue -O "$target_path" "$url"
     
     if [ $? -eq 0 ]; then
         echo "✅ $model_dir/$file_name 下载完成"
@@ -50,9 +50,9 @@ mkdir -p "$MODEL_CACHE_DIR/jina_v2/tokenizer"
 for file in "${JINA_V2_FILES[@]}"; do
     if [[ "$file" == tokenizer/* ]]; then
         # tokenizer文件需要特殊处理
-        url="https://huggingface.co/jinaai/jina-clip-v2/resolve/main/$file"
+        url="https://huggingface.co/jinaai/jina-clip-v2/resolve/main?download=true/$file"
     else
-        url="https://huggingface.co/jinaai/jina-clip-v2/resolve/main/onnx/$file"
+        url="https://huggingface.co/jinaai/jina-clip-v2/resolve/main?download=true/onnx/$file"
     fi
     download_model "jina_v2" "$file" "$url"
 done
