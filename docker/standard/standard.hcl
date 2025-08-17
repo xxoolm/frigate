@@ -25,4 +25,5 @@ target frigate {
   }
   platforms = ["linux/amd64"]
   target = "frigate"
+  outputs = ["type=docker,dest=/tmp/image.tar"]
 }
