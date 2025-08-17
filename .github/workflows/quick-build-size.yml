@@ -50,6 +50,10 @@ jobs:
           sudo rm -rf /usr/share/dotnet || true
           sudo rm -rf /opt/ghc || true
           sudo rm -rf /usr/local/share/chromium || true
+          # 清理 journalctl 日志
+          sudo journalctl --vacuum-size=100M || true
+          # 清理系统日志
+          sudo find /var/log -type f -name "*.log" -mtime +7 -delete || true
           # 显示清理后状态
           df -h
       
@@ -64,8 +68,14 @@ jobs:
           echo "TMPDIR=/var/lib/docker/tmp" >> $GITHUB_ENV
           echo "TEMP=/var/lib/docker/tmp" >> $GITHUB_ENV
           echo "TMP=/var/lib/docker/tmp" >> $GITHUB_ENV
+          # 同时重定向其他可能的临时目录
+          sudo mkdir -p /var/lib/docker/var-tmp
+          sudo chmod 1777 /var/lib/docker/var-tmp
+          echo "RUNNER_TEMP=/var/lib/docker/var-tmp" >> $GITHUB_ENV
+          echo "RUNNER_TOOL_CACHE=/var/lib/docker/var-tmp" >> $GITHUB_ENV
           # 验证设置
           echo "临时目录: $TMPDIR"
+          echo "Runner 临时目录: $RUNNER_TEMP"
           df -h | grep docker
       
       # 配置 BuildKit GC 策略
@@ -96,6 +106,7 @@ jobs:
           echo "🔍 验证空间配置..."
           echo "1. 临时目录位置:"
           echo "   TMPDIR=$TMPDIR"
+          echo "   RUNNER_TEMP=$RUNNER_TEMP"
           echo "   $(df -h $TMPDIR)"
           
           echo -e "\n2. BuildKit 配置:"
