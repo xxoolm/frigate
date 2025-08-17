@@ -148,18 +148,20 @@ else
     # JinaV2模型文件 - 使用HuggingFace的原始链接
     JINA_V2_FILES=(
         "model_fp16.onnx"
-        "tokenizer/tokenizer.json"
-        "tokenizer/tokenizer_config.json"
-        "tokenizer/vocab.txt"
+        "tokenizer.json"
+        "tokenizer_config.json"
+        "vocab.txt"
     )
 
-    # 创建tokenizer目录
-    mkdir -p "$MODEL_CACHE_DIR/jinaai/jina-clip-v2/tokenizer"
+    # 创建模型目录
+    mkdir -p "$MODEL_CACHE_DIR/jinaai/jina-clip-v2"
 
     for file in "${JINA_V2_FILES[@]}"; do
-        if [[ "$file" == tokenizer/* ]]; then
-            # tokenizer文件需要特殊处理
-            url="https://huggingface.co/jinaai/jina-clip-v2/resolve/main/$file?download=true"
+        if [[ "$file" == tokenizer/* ]] || [[ "$file" == *.json ]] || [[ "$file" == *.txt ]]; then
+            # tokenizer文件在根目录下，不是在tokenizer子目录下
+            # 移除tokenizer/前缀
+            clean_file="${file#tokenizer/}"
+            url="https://huggingface.co/jinaai/jina-clip-v2/resolve/main/$clean_file?download=true"
         else
             url="https://huggingface.co/jinaai/jina-clip-v2/resolve/main/onnx/$file?download=true"
         fi
