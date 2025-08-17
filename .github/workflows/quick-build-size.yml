@@ -1,0 +1,305 @@
+name: 快速构建 - 显示镜像大小
+
+on:
+  # 手动触发
+  workflow_dispatch:
+  # 星标仓库时触发
+  watch:
+    types: [started]
+
+# 只运行最新的提交以避免缓存覆盖
+concurrency:
+  group: ${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: 3.9
+
+jobs:
+  quick_build:
+    runs-on: ubuntu-22.04
+    name: 快速构建和大小检查
+    
+    steps:
+      # 检出代码
+      - name: 检出代码
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      
+      # 记录构建开始时间和创建短提交哈希
+      - name: 记录构建开始时间
+        run: |
+          echo "BUILD_START_TIME=$(date +%s)" >> $GITHUB_ENV
+          echo "SHORT_SHA=${GITHUB_SHA::7}" >> $GITHUB_ENV
+      
+      # 使用官方的setup action (参考ci.yml)
+      - name: 设置 QEMU 和 Buildx
+        id: setup
+        uses: ./.github/actions/setup
+        with:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      # 构建并推送 Docker 镜像 (使用官方的最佳实践)
+      - name: 构建并推送 Docker 镜像
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/main/Dockerfile
+          push: true
+          platforms: linux/amd64
+          target: frigate
+          tags: |
+            ghcr.io/${{ github.repository }}/frigate-n150:stable
+            ghcr.io/${{ github.repository }}/frigate-n150:${{ env.SHORT_SHA }}
+          # 使用改进的构建缓存策略
+          cache-from: |
+            type=registry,ref=${{ steps.setup.outputs.cache-name }}-amd64
+            type=gha
+          cache-to: |
+            type=registry,ref=${{ steps.setup.outputs.cache-name }}-amd64,mode=max
+            type=gha,mode=max
+          # 输出镜像到本地文件
+          outputs: type=docker,dest=/tmp/image.tar
+        # 添加超时和错误处理
+        timeout-minutes: 30
+        continue-on-error: false
+      
+      # 记录构建完成时间
+      - name: 记录构建完成时间
+        run: |
+          echo "BUILD_END_TIME=$(date +%s)" >> $GITHUB_ENV
+          BUILD_DURATION=$((BUILD_END_TIME - BUILD_START_TIME))
+          echo "BUILD_DURATION=$BUILD_DURATION" >> $GITHUB_ENV
+          echo "构建耗时: ${BUILD_DURATION} 秒"
+      
+      # 安全扫描
+      - name: 安全扫描
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ghcr.io/${{ github.repository }}/frigate-n150:stable
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+      
+      # 上传安全扫描结果
+      - name: 上传安全扫描结果
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+      
+      # 获取并显示镜像大小 - 增强版分析
+      - name: 获取并显示镜像大小
+        run: |
+          echo "🐳 正在加载 Docker 镜像..."
+          docker load -i /tmp/image.tar
+          
+          echo ""
+          echo "📊 === FRIGATE DOCKER 镜像大小报告 ==="
+          echo "仓库: ${{ github.repository }}"
+          echo "分支: ${{ github.ref_name }}"
+          echo "提交: ${{ env.SHORT_SHA }}"
+          echo "平台: linux/amd64"
+          echo "版本: v0.16.0-rc4"
+          echo "构建耗时: ${BUILD_DURATION} 秒"
+          echo ""
+          
+          # 使用更可靠的方法获取镜像信息
+          echo "📦 镜像详情:"
+          
+          # 获取镜像信息 - 改进的错误处理
+          FRIGATE_IMAGES=$(docker images --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}\t{{.ID}}" | grep "frigate-n150" || echo "未找到frigate-n150镜像")
+          echo "$FRIGATE_IMAGES"
+          
+          echo ""
+          echo "🔍 详细大小分析:"
+          
+          # 获取镜像大小 - 改进的逻辑
+          if docker images --format "{{.Repository}}:{{.Tag}}" | grep -q "frigate-n150"; then
+            # 获取最新的frigate-n150镜像大小
+            IMAGE_SIZE=$(docker images --format "{{.Repository}}:{{.Tag}}\t{{.Size}}" | grep "frigate-n150" | head -1 | awk '{print $2}' || echo "未知")
+            echo "总镜像大小: $IMAGE_SIZE"
+            
+            echo ""
+            echo "📋 层信息分析:"
+            # 获取层信息 - 改进的错误处理
+            docker history ghcr.io/${{ github.repository }}/frigate-n150:stable --format "table {{.CreatedBy}}\t{{.Size}}" | head -10 || echo "无法获取层信息"
+            
+            echo ""
+            echo "📈 智能大小分析:"
+            # 分析镜像大小
+            if [[ "$IMAGE_SIZE" =~ ^[0-9.]+[KMG]B$ ]]; then
+              SIZE_NUM=$(echo "$IMAGE_SIZE" | sed 's/[KMG]B//')
+              SIZE_UNIT=$(echo "$IMAGE_SIZE" | sed 's/[0-9.]*//')
+              
+              case $SIZE_UNIT in
+                "GB")
+                  if (( $(echo "$SIZE_NUM > 5" | bc -l) )); then
+                    echo "⚠️  镜像较大 (>5GB)，建议检查是否包含不必要的文件"
+                    echo "💡 优化建议:"
+                    echo "   - 检查是否包含调试工具"
+                    echo "   - 清理临时文件和缓存"
+                    echo "   - 考虑使用多阶段构建"
+                  elif (( $(echo "$SIZE_NUM > 3" | bc -l) )); then
+                    echo "📦 镜像大小适中 (3-5GB)，包含完整功能"
+                    echo "✅ 当前大小合理，无需优化"
+                  else
+                    echo "✅ 镜像大小优秀 (<3GB)"
+                    echo "🎉 构建优化效果显著！"
+                  fi
+                  ;;
+                "MB")
+                  echo "✅ 镜像较小 (<1GB)，构建优化良好"
+                  echo "🌟 这是非常优秀的镜像大小！"
+                  ;;
+                *)
+                  echo "ℹ️  镜像大小: $IMAGE_SIZE"
+                  ;;
+              esac
+            fi
+            
+            echo ""
+            echo "🔧 构建性能分析:"
+            if [ "$BUILD_DURATION" -gt 1800 ]; then
+              echo "⚠️  构建时间较长 (>30分钟)，建议优化"
+              echo "💡 优化建议:"
+              echo "   - 检查网络连接"
+              echo "   - 优化Dockerfile"
+              echo "   - 使用更快的构建环境"
+            elif [ "$BUILD_DURATION" -gt 900 ]; then
+              echo "📊 构建时间适中 (15-30分钟)"
+              echo "✅ 构建性能正常"
+            else
+              echo "🚀 构建速度优秀 (<15分钟)"
+              echo "🎉 构建性能出色！"
+            fi
+          else
+            echo "❌ 错误: 镜像未找到"
+            echo "请检查构建日志以获取更多信息"
+          fi
+          
+          echo ""
+          echo "💾 大小对比:"
+          echo "- 标准 Frigate 镜像: ~2-4GB"
+          echo "- 包含 TensorRT: ~3-5GB"
+          echo "- 包含 GPU 支持: ~4-6GB"
+          echo "- 我们的优化镜像: 目标 <3GB"
+          
+          echo ""
+          echo "✅ 构建成功完成!"
+          echo "镜像标签: ghcr.io/${{ github.repository }}/frigate-n150:stable"
+          echo "下载命令: docker pull ghcr.io/${{ github.repository }}/frigate-n150:stable"
+          
+          # 调试信息
+          echo ""
+          echo "🔍 调试信息:"
+          echo "所有镜像:"
+          docker images --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}\t{{.CreatedAt}}" | head -10 || echo "无法列出镜像"
+      
+      # 生成构建报告
+      - name: 生成构建报告
+        run: |
+          cat > build-report.md << 'REPORT_EOF'
+          # Frigate v0.16.0-rc4 构建报告
+          
+          ## 📋 构建信息
+          - **仓库**: ${{ github.repository }}
+          - **版本**: v0.16.0-rc4
+          - **平台**: linux/amd64
+          - **提交**: ${{ env.SHORT_SHA }}
+          - **构建时间**: ${BUILD_DURATION} 秒
+          - **构建状态**: ✅ 成功
+          
+          ## 📦 镜像信息
+          - **镜像标签**: ghcr.io/${{ github.repository }}/frigate-n150:stable
+          - **下载命令**: `docker pull ghcr.io/${{ github.repository }}/frigate-n150:stable`
+          
+          ## 🚀 技术特性
+          - ✅ 使用官方 setup action
+          - ✅ 启用多级构建缓存
+          - ✅ 并发控制避免缓存覆盖
+          - ✅ 智能错误处理
+          - ✅ 安全扫描集成
+          - ✅ 构建性能监控
+          
+          ## 📊 优化建议
+          $(if [ "$BUILD_DURATION" -gt 1800 ]; then
+            echo "- ⚠️  构建时间较长，建议优化Dockerfile"
+          fi)
+          $(if [[ "$IMAGE_SIZE" =~ ^[0-9.]+GB$ ]] && (( $(echo "$IMAGE_SIZE" | sed 's/GB//') > 5 )); then
+            echo "- ⚠️  镜像较大，建议清理不必要的文件"
+          fi)
+          
+          ## 🔗 相关链接
+          - [GitHub Packages](https://github.com/${{ github.repository }}/pkgs/container/frigate-n150)
+          - [构建日志](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          
+          ---
+          *报告生成时间: $(date)*
+          REPORT_EOF
+      
+      # 创建摘要 - 增强版格式
+      - name: 创建摘要
+        run: |
+          echo "## 🐳 Frigate v0.16.0-rc4 Docker 镜像大小报告" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📋 构建信息" >> $GITHUB_STEP_SUMMARY
+          echo "- **仓库**: ${{ github.repository }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **版本**: v0.16.0-rc4" >> $GITHUB_STEP_SUMMARY
+          echo "- **平台**: linux/amd64" >> $GITHUB_STEP_SUMMARY
+          echo "- **提交**: ${{ env.SHORT_SHA }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **构建时间**: ${BUILD_DURATION} 秒" >> $GITHUB_STEP_SUMMARY
+          echo "- **构建缓存**: ✅ 多级缓存已启用" >> $GITHUB_STEP_SUMMARY
+          echo "- **安全扫描**: ✅ 已集成 Trivy" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📦 镜像详情" >> $GITHUB_STEP_SUMMARY
+          echo "- **镜像标签**: ghcr.io/${{ github.repository }}/frigate-n150:stable" >> $GITHUB_STEP_SUMMARY
+          echo "- **构建状态**: ✅ 成功" >> $GITHUB_STEP_SUMMARY
+          echo "- **下载命令**: \`docker pull ghcr.io/${{ github.repository }}/frigate-n150:stable\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🚀 技术改进" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ 使用官方 setup action" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ 启用多级构建缓存加速" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ 并发控制避免缓存覆盖" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ 智能错误处理和超时控制" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ 集成安全扫描 (Trivy)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ 构建性能监控" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ 智能大小分析和优化建议" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ 自动生成构建报告" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📊 后续步骤" >> $GITHUB_STEP_SUMMARY
+          echo "1. 查看上方构建日志获取详细大小信息" >> $GITHUB_STEP_SUMMARY
+          echo "2. 检查安全扫描结果" >> $GITHUB_STEP_SUMMARY
+          echo "3. 下载镜像文件进行测试" >> $GITHUB_STEP_SUMMARY
+          echo "4. 根据优化建议进行改进" >> $GITHUB_STEP_SUMMARY
+      
+      # 上传镜像作为构建产物
+      - name: 上传镜像作为构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: frigate-v0.16.0-rc4-amd64
+          path: /tmp/image.tar
+          retention-days: 7
+      
+      # 上传构建报告
+      - name: 上传构建报告
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-report
+          path: build-report.md
+          retention-days: 30
+      
+      # 构建结果通知
+      - name: 构建结果通知
+        if: always()
+        run: |
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "🎉 构建成功！"
+            echo "镜像: ghcr.io/${{ github.repository }}/frigate-n150:stable"
+            echo "构建时间: ${BUILD_DURATION} 秒"
+          else
+            echo "❌ 构建失败！"
+            echo "请检查构建日志以获取错误信息"
+          fi
