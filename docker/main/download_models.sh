@@ -108,18 +108,18 @@ fi
 
 # 1. 语义搜索模型 (JinaV2 Large) - 完整版本
 echo "🔍 下载语义搜索模型 (JinaV2 Large)..."
-mkdir -p "$MODEL_CACHE_DIR/jina_v2"
+mkdir -p "$MODEL_CACHE_DIR/jinaai/jina-clip-v2"
 
 # 检查磁盘空间 (JinaV2 模型约 1.6GB)
 echo "🔍 检查磁盘空间 (需要 2000MB)..."
 if ! check_disk_space 2000; then
     echo "⚠️  跳过 JinaV2 模型下载（空间不足）"
     # 创建空的模型目录和状态文件
-    mkdir -p "$MODEL_CACHE_DIR/jina_v2"
-    echo "{}" > "$MODEL_CACHE_DIR/jina_v2/model_fp16.onnx"
-    echo "{}" > "$MODEL_CACHE_DIR/jina_v2/tokenizer/tokenizer.json"
-    echo "{}" > "$MODEL_CACHE_DIR/jina_v2/tokenizer/tokenizer_config.json"
-    echo "" > "$MODEL_CACHE_DIR/jina_v2/tokenizer/vocab.txt"
+    mkdir -p "$MODEL_CACHE_DIR/jinaai/jina-clip-v2"
+    echo "{}" > "$MODEL_CACHE_DIR/jinaai/jina-clip-v2/model_fp16.onnx"
+    echo "{}" > "$MODEL_CACHE_DIR/jinaai/jina-clip-v2/tokenizer/tokenizer.json"
+    echo "{}" > "$MODEL_CACHE_DIR/jinaai/jina-clip-v2/tokenizer/tokenizer_config.json"
+    echo "" > "$MODEL_CACHE_DIR/jinaai/jina-clip-v2/tokenizer/vocab.txt"
 else
     # JinaV2模型文件 - 使用HuggingFace的原始链接
     JINA_V2_FILES=(
@@ -130,7 +130,7 @@ else
     )
 
     # 创建tokenizer目录
-    mkdir -p "$MODEL_CACHE_DIR/jina_v2/tokenizer"
+    mkdir -p "$MODEL_CACHE_DIR/jinaai/jina-clip-v2/tokenizer"
 
     for file in "${JINA_V2_FILES[@]}"; do
         if [[ "$file" == tokenizer/* ]]; then
@@ -139,7 +139,7 @@ else
         else
             url="https://huggingface.co/jinaai/jina-clip-v2/resolve/main/onnx/$file?download=true"
         fi
-        download_model "jina_v2" "$file" "$url" || echo "⚠️ $file 下载失败，继续..."
+        download_model "jinaai/jina-clip-v2" "$file" "$url" || echo "⚠️ $file 下载失败，继续..."
     done
 fi
 
@@ -167,25 +167,36 @@ fi
 
 # 3. 车牌识别模型 - 完整版本
 echo "🚗 下载车牌识别模型..."
-mkdir -p "$MODEL_CACHE_DIR/lpr"
+mkdir -p "$MODEL_CACHE_DIR/yolov9_license_plate"
 
 # 检查磁盘空间 (车牌识别模型约 300MB)
 echo "🔍 检查磁盘空间 (需要 300MB)..."
 if check_disk_space 300; then
     # 车牌检测模型
-    download_model "lpr" "yolov9-256-license-plates.onnx" "https://github.com/hawkeye217/yolov9-license-plates/raw/refs/heads/master/models/yolov9-256-license-plates.onnx" || echo "⚠️ yolov9-256-license-plates.onnx 下载失败，继续..."
+    download_model "yolov9_license_plate" "yolov9-256-license-plates.onnx" "https://github.com/hawkeye217/yolov9-license-plates/raw/refs/heads/master/models/yolov9-256-license-plates.onnx" || echo "⚠️ yolov9-256-license-plates.onnx 下载失败，继续..."
+else
+    echo "⚠️  跳过车牌检测模型下载（空间不足）"
+    # 创建空的模型文件
+    echo "{}" > "$MODEL_CACHE_DIR/yolov9_license_plate/yolov9-256-license-plates.onnx"
+fi
 
+# 车牌OCR模型
+echo "🚗 下载车牌OCR模型..."
+mkdir -p "$MODEL_CACHE_DIR/paddleocr-onnx"
+
+# 检查磁盘空间 (车牌OCR模型约 200MB)
+echo "🔍 检查磁盘空间 (需要 200MB)..."
+if check_disk_space 200; then
     # 车牌分类模型
-    download_model "lpr" "classification.onnx" "https://github.com/hawkeye217/paddleocr-onnx/raw/refs/heads/master/models/classification.onnx" || echo "⚠️ classification.onnx 下载失败，继续..."
+    download_model "paddleocr-onnx" "classification.onnx" "https://github.com/hawkeye217/paddleocr-onnx/raw/refs/heads/master/models/classification.onnx" || echo "⚠️ classification.onnx 下载失败，继续..."
 
     # 车牌识别模型
-    download_model "lpr" "recognition.onnx" "https://github.com/hawkeye217/paddleocr-onnx/raw/refs/heads/master/models/recognition.onnx" || echo "⚠️ recognition.onnx 下载失败，继续..."
+    download_model "paddleocr-onnx" "recognition.onnx" "https://github.com/hawkeye217/paddleocr-onnx/raw/refs/heads/master/models/recognition.onnx" || echo "⚠️ recognition.onnx 下载失败，继续..."
 else
-    echo "⚠️  跳过车牌识别模型下载（空间不足）"
+    echo "⚠️  跳过车牌OCR模型下载（空间不足）"
     # 创建空的模型文件
-    echo "{}" > "$MODEL_CACHE_DIR/lpr/yolov9-256-license-plates.onnx"
-    echo "{}" > "$MODEL_CACHE_DIR/lpr/classification.onnx"
-    echo "{}" > "$MODEL_CACHE_DIR/lpr/recognition.onnx"
+    echo "{}" > "$MODEL_CACHE_DIR/paddleocr-onnx/classification.onnx"
+    echo "{}" > "$MODEL_CACHE_DIR/paddleocr-onnx/recognition.onnx"
 fi
 
 # 4. 鸟类分类模型 - 完整版本
@@ -232,7 +243,7 @@ echo "🔍 验证下载的模型文件..."
 total_files=0
 downloaded_files=0
 
-for model_dir in "jina_v2" "facedet" "face_embedding" "lpr" "bird"; do
+for model_dir in "jinaai/jina-clip-v2" "facedet" "face_embedding" "yolov9_license_plate" "paddleocr-onnx" "bird"; do
     if [ -d "$MODEL_CACHE_DIR/$model_dir" ]; then
         files_in_dir=$(find "$MODEL_CACHE_DIR/$model_dir" -type f | wc -l)
         total_files=$((total_files + files_in_dir))
