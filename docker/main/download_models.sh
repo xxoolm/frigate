@@ -7,22 +7,22 @@ set -euo pipefail
 
 # 依赖检查
 command_exists() {
-	command -v "$1" >/dev/null 2>&1
+    command -v "$1" >/dev/null 2>&1
 }
 
 if ! command_exists wget && ! command_exists curl; then
-	echo "❌ 需要 wget 或 curl，但系统均未安装"
-	exit 1
+    echo "❌ 需要 wget 或 curl，但系统均未安装"
+    exit 1
 fi
 
 # 目录大小显示函数
 show_folder_size() {
-	local path="$1"
-	if [ -d "$path" ]; then
-		local size
-		size=$(du -sh "$path" 2>/dev/null | awk '{print $1}')
-		echo "   - $path: $size"
-	fi
+    local path="$1"
+    if [ -d "$path" ]; then
+        local size
+        size=$(du -sh "$path" 2>/dev/null | awk '{print $1}')
+        echo "   - $path: $size"
+    fi
 }
 
 # 添加调试信息
@@ -42,14 +42,14 @@ echo "📁 创建模型缓存目录: $MODEL_CACHE_DIR"
 
 # 检查磁盘空间函数
 check_disk_space() {
-	local required_space=$1  # in MB
-	local available_space=$(df -m "$MODEL_CACHE_DIR" | awk 'NR==2 {print $4}')
-	
-	if [ $available_space -lt $required_space ]; then
-		echo "❌ 磁盘空间不足! 需要 ${required_space}MB，当前可用 ${available_space}MB"
-		return 1
-	fi
-	return 0
+    local required_space=$1  # in MB
+    local available_space=$(df -m "$MODEL_CACHE_DIR" | awk 'NR==2 {print $4}')
+
+    if [ $available_space -lt $required_space ]; then
+        echo "❌ 磁盘空间不足! 需要 ${required_space}MB，当前可用 ${available_space}MB"
+        return 1
+    fi
+    return 0
 }
 
 # 定义模型下载函数（增强版）
@@ -58,19 +58,40 @@ download_model() {
     local file_name="$2"
     local url="$3"
     local target_path="$MODEL_CACHE_DIR/$model_dir/$file_name"
-    local max_retries=5
+        local max_retries=5
     local retry_delay=5  # 初始延迟5秒
-    
-    	echo "📥 下载 $model_dir/$file_name..."
-	mkdir -p "$(dirname "$target_path")"
-	
-	for ((i=1; i<=max_retries; i++)); do
-echo "🔄 尝试 $i/$max_retries: $url"
-        
-        wget -q --show-progress --tries=3 --timeout=600 --continue -O "$target_path" "$url"
-        local wget_exit=$?
-        
-        if [ $wget_exit -eq 0 ]; then
+
+    echo "📥 下载 $model_dir/$file_name..."
+    mkdir -p "$(dirname "$target_path")"
+
+    # Hugging Face 链接优先使用 curl 以规避限流与重定向问题
+    local use_curl_first=0
+    if [[ "$url" == https://huggingface.co/* ]]; then
+        use_curl_first=1
+    fi
+
+    for ((i=1; i<=max_retries; i++)); do
+        echo "🔄 尝试 $i/$max_retries: $url"
+
+        if [ $use_curl_first -eq 1 ] && command_exists curl; then
+            curl -L --retry 3 --retry-delay 5 --retry-max-time 600 -C - -o "$target_path" "$url"
+            curl_exit=$?
+            if [ $curl_exit -eq 0 ]; then
+                :
+            else
+                echo "⚠️  curl 错误码: $curl_exit"
+            fi
+        else
+            if command_exists wget; then
+                wget -q --show-progress --tries=3 --timeout=600 --continue -O "$target_path" "$url"
+                curl_exit=$?
+            else
+                curl -L --retry 3 --retry-delay 5 --retry-max-time 600 -C - -o "$target_path" "$url"
+                curl_exit=$?
+            fi
+        fi
+
+        if [ ${curl_exit:-1} -eq 0 ]; then
             # 添加文件完整性检查
             if [[ "$file_name" == "model_fp16.onnx" ]]; then
                 local expected_size=1688250000  # 1.6GB
@@ -88,42 +109,32 @@ echo "🔄 尝试 $i/$max_retries: $url"
                     fi
                 fi
             fi
-            
+
             echo "✅ $model_dir/$file_name 下载完成"
             return 0
-        elif [ $wget_exit -eq 8 ]; then
-            echo "⚠️  服务器错误 (exit code 8)，可能是网络问题或 Hugging Face 限流"
-        else
-            echo "⚠️  wget 错误码: $wget_exit"
         fi
-        
+
         if [ $i -lt $max_retries ]; then
             echo "⏳ $retry_delay 秒后重试..."
             sleep $retry_delay
             retry_delay=$((retry_delay * 2))  # 指数退避
         fi
     done
-    
-    # 最后尝试使用 curl
-    echo "🔄 尝试使用 curl 下载..."
-    curl -L -o "$target_path" "$url"
-    if [ $? -eq 0 ]; then
-        echo "✅ $model_dir/$file_name 通过 curl 下载完成"
-        return 0
-    fi
-    
+
     echo "❌ $model_dir/$file_name 下载失败"
     return 1
 }
 
-# 测试下载一个简单的文件
-echo "🧪 测试下载功能..."
-if download_model "test" "test.txt" "https://httpbin.org/bytes/100"; then
-    echo "✅ 测试下载成功"
-    rm -rf "$MODEL_CACHE_DIR/test"
-else
-    echo "❌ 测试下载失败，退出"
-    exit 1
+# 测试下载一个简单的文件（可选，通过环境变量控制）
+if [ "${ENABLE_DOWNLOAD_SELFTEST:-0}" = "1" ]; then
+    echo "🧪 测试下载功能..."
+    if download_model "test" "test.txt" "https://httpbin.org/bytes/100"; then
+        echo "✅ 测试下载成功"
+        rm -rf "$MODEL_CACHE_DIR/test"
+    else
+        echo "❌ 测试下载失败，退出"
+        exit 1
+    fi
 fi
 
 # 0. 创建所有必要的目录结构
@@ -179,7 +190,7 @@ if check_disk_space 500; then
     download_model "facedet" "facenet.tflite" "https://github.com/NickM-27/facenet-onnx/releases/download/v1.0/facenet.tflite" || echo "⚠️ facenet.tflite 下载失败，继续..."
 
     # 人脸嵌入模型 (Large - ArcFace)
-    download_model "facedet" "arcface.onnx" "https://github.com/NickM-27/facenet-onnx/releases/download/v1.0/arcface.onnx" || echo "⚠️ arcface.onnx 下载失败，继续..."
+    download_model "face_embedding" "arcface.onnx" "https://github.com/NickM-27/facenet-onnx/releases/download/v1.0/arcface.onnx" || echo "⚠️ arcface.onnx 下载失败，继续..."
 else
     echo "⚠️  跳过人脸识别模型下载（空间不足）"
 fi
@@ -225,7 +236,7 @@ fi
 
 # 5. 创建模型状态文件
 echo "📝 创建模型状态文件..."
-cat > "$MODEL_CACHE_DIR/models_status.json" << 'JSON_EOF'
+cat > "$MODEL_CACHE_DIR/models_status.json" << JSON_EOF
 {
   "semantic_search": {
     "model": "jinav2",
