@@ -184,7 +184,7 @@ cp "../sqlite/sqlite3.h" ./
 cp "../sqlite/sqlite3.h" src/
 
 # Build the extension.
-python3 setup.py build
+python3 setup.py build_static
 
 # Install the extension.
 python3 setup.py install
