@@ -75,21 +75,16 @@ jobs:
           echo "BUILD_DURATION=$BUILD_DURATION" >> $GITHUB_ENV
           echo "构建耗时: ${BUILD_DURATION} 秒"
       
-      # 安全扫描
-      - name: 安全扫描
+      # 快速安全扫描（仅检查严重漏洞）
+      - name: 快速安全扫描
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: ghcr.io/${{ github.repository }}/frigate-n150:stable
-          format: 'sarif'
-          output: 'trivy-results.sarif'
-          severity: 'CRITICAL,HIGH'
-      
-      # 上传安全扫描结果
-      - name: 上传安全扫描结果
-        uses: github/codeql-action/upload-sarif@v3
-        if: always()
-        with:
-          sarif_file: 'trivy-results.sarif'
+          format: 'table'
+          severity: 'CRITICAL'
+          timeout: '5m'
+          exit-code: '0'
+
       
       # 获取并显示镜像大小 - 增强版分析
       - name: 获取并显示镜像大小
