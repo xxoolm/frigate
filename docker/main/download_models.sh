@@ -61,11 +61,11 @@ download_model() {
     local max_retries=5
     local retry_delay=5  # 初始延迟5秒
     
-    echo "📥 下载 $model_dir/$file_name..."
-    mkdir -p "$MODEL_CACHE_DIR/$model_dir"
-    
-    for ((i=1; i<=max_retries; i++)); do
-        echo "🔄 尝试 $i/$max_retries: $url"
+    	echo "📥 下载 $model_dir/$file_name..."
+	mkdir -p "$(dirname "$target_path")"
+	
+	for ((i=1; i<=max_retries; i++)); do
+echo "🔄 尝试 $i/$max_retries: $url"
         
         wget -q --show-progress --tries=3 --timeout=600 --continue -O "$target_path" "$url"
         local wget_exit=$?
