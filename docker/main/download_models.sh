@@ -242,6 +242,16 @@ done
 
 echo "📊 下载统计: $downloaded_files/$total_files 个文件成功下载"
 
+# 7. 显示文件夹大小统计
+echo ""
+echo "📁 === 文件夹大小统计 ==="
+show_folder_size "$MODEL_CACHE_DIR"
+echo ""
+for model_dir in "jinaai/jina-clip-v1" "jinaai/jina-clip-v2" "facedet" "face_embedding" "yolov9_license_plate" "paddleocr-onnx" "openvino/ort" "bird"; do
+    show_folder_size "$MODEL_CACHE_DIR/$model_dir"
+done
+
+
 # 7. 设置权限
 echo "🔐 设置文件权限..."
 chmod -R 755 "$MODEL_CACHE_DIR"
