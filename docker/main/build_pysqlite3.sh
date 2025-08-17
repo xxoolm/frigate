@@ -30,8 +30,22 @@ if [[ ! -d "sqlite" ]]; then
     
     # 下载文件
     if wget --timeout=60 --tries=3 --no-verbose "$url" -O sqlite.tar.gz 2>/dev/null; then
-      echo "下载成功，验证文件完整性..."
+      echo "下载成功，检查文件类型..."
       
+      # 检查文件是否为HTML页面（错误页面）
+      if grep -q "<html" sqlite.tar.gz 2>/dev/null || grep -q "<!DOCTYPE" sqlite.tar.gz 2>/dev/null; then
+        echo "检测到HTML页面，跳过此链接..."
+        continue
+      fi
+      
+      # 检查文件大小是否合理（至少1MB）
+      file_size=$(stat -c%s sqlite.tar.gz 2>/dev/null || echo 0)
+      if [ "$file_size" -lt 1048576 ]; then
+        echo "文件太小 ($file_size bytes)，可能不是有效的压缩包，跳过此链接..."
+        continue
+      fi
+      
+      echo "文件类型检查通过，验证文件完整性..."
       # 验证文件完整性
       if tar -tzf sqlite.tar.gz > /dev/null 2>&1; then
         echo "文件验证成功，正在解压..."
