@@ -1,5 +1,23 @@
 # syntax=docker/dockerfile:1.6
 
+# Frigate Dockerfile
+# ==================
+# 
+# 构建目标:
+# - base: 基础构建环境
+# - wheels: Python依赖构建
+# - deps: 运行时依赖
+# - frigate: 最终生产镜像
+# - devcontainer: 开发容器
+#
+# 构建参数:
+# - BASE_IMAGE: 基础镜像 (默认: debian:12)
+# - SLIM_BASE: 精简基础镜像 (默认: debian:12-slim)
+# - TARGETARCH: 目标架构 (由Buildx自动设置)
+#
+# 使用示例:
+# docker buildx build --target frigate -t frigate .
+
 # https://askubuntu.com/questions/972516/debian-frontend-environment-variable
 ARG DEBIAN_FRONTEND=noninteractive
 
@@ -177,8 +195,8 @@ RUN wget -q https://bootstrap.pypa.io/get-pip.py -O get-pip.py \
     && sed -i 's/args.append("setuptools")/args.append("setuptools==77.0.3")/' get-pip.py \
     && python3 get-pip.py "pip"
 
-COPY docker/main/requirements.txt /requirements.txt
-RUN pip3 install -r /requirements.txt
+COPY docker/main/requirements.txt /tmp/requirements.txt
+RUN pip3 install --no-cache-dir -r /tmp/requirements.txt
 # Install SQLite3 development library (双保险)
 RUN apt-get update && apt-get install -y libsqlite3-dev
 # Build pysqlite3 from source
