@@ -187,7 +187,8 @@ cp "../sqlite/sqlite3.h" src/
 python3 setup.py build_static
 
 # Install the extension.
-python3 setup.py install
+python3 setup.py bdist_wheel
+pip3 install dist/*.whl
 
 cd ../
 echo "✅ pysqlite3 构建完成！"
