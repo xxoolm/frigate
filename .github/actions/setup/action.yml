@@ -28,6 +28,31 @@ runs:
     - name: Start docker
       run: sudo systemctl start docker
       shell: bash
+    # 修复 Docker 目录权限并配置 Buildkit
+    - name: 修复 Docker 目录权限并配置 Buildkit
+      run: |
+        echo " 修复 Docker 目录权限并配置 Buildkit..."
+        # 修复目录权限
+        sudo chmod 775 /var/lib/docker
+        sudo chmod 1777 /var/lib/docker/tmp || true
+        
+        # 确保 Buildkit 使用正确的配置目录
+        if [ -n "${BUILDKITD_CFG_DIR:-}" ]; then
+          echo " 配置 Buildkit 使用指定配置目录: $BUILDKITD_CFG_DIR"
+          mkdir -p "$BUILDKITD_CFG_DIR"
+          chmod 777 "$BUILDKITD_CFG_DIR"
+          
+          # 创建 buildkitd 配置文件
+          cat > "$BUILDKITD_CFG_DIR/buildkitd.toml" << EOF
+        [worker.oci]
+          gc = true
+          gc-imports = true
+          gckeepstorage = "10GB"
+          net = "host"
+          snapshotter = "overlayfs"
+        EOF
+        fi
+      shell: bash
     - id: lowercaseRepo
       uses: ASzc/change-string-case-action@v5
       with:
