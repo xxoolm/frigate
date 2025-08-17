@@ -7,13 +7,13 @@ PYSQLITE3_VERSION="0.5.3"
 
 # 定义多个备用下载链接
 SQLITE_DOWNLOAD_URLS=(
+    "https://github.com/sqlite/sqlite/archive/refs/tags/version-3.46.0.tar.gz"
+    "https://github.com/sqlite/sqlite/archive/refs/tags/version-3.46.1.tar.gz"
     "https://www.sqlite.org/src/tarball/sqlite.tar.gz?r=${SQLITE3_VERSION}"
     "https://www.sqlite.org/2024/sqlite-src-3460000.tar.gz"
     "https://www.sqlite.org/2024/sqlite-src-3460100.tar.gz"
     "https://www.sqlite.org/2024/sqlite-amalgamation-3460100.zip"
     "https://www.sqlite.org/2024/sqlite-amalgamation-3460000.zip"
-    "https://github.com/sqlite/sqlite/archive/refs/tags/version-3.46.0.tar.gz"
-    "https://github.com/sqlite/sqlite/archive/refs/tags/version-3.46.1.tar.gz"
 )
 
 # Fetch the source code for the latest release of Sqlite.
