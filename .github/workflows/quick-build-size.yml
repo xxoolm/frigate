@@ -214,6 +214,9 @@ jobs:
       # 生成构建报告
       - name: 生成构建报告
         run: |
+          # 获取镜像大小信息
+          IMAGE_SIZE=$(docker images --format "{{.Size}}" | grep "frigate-n150" | head -1 || echo "未知")
+
           cat > build-report.md << 'REPORT_EOF'
           # Frigate v0.16.0-rc4 构建报告
           
@@ -227,6 +230,7 @@ jobs:
           
           ## 📦 镜像信息
           - **镜像标签**: ghcr.io/${{ github.repository }}/frigate-n150:stable
+          - **镜像大小**: ${IMAGE_SIZE}
           - **下载命令**: `docker pull ghcr.io/${{ github.repository }}/frigate-n150:stable`
           
           ## 🚀 技术特性
