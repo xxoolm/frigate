@@ -167,8 +167,8 @@ RUN apt-get -qq update \
     # sqlite3 dependencies
     tclsh \
     # scipy dependencies
-    # Install SQLite3 development library (双保险)
-    gcc gfortran libopenblas-dev liblapack-dev libsqlite3-dev && \
+
+    gcc gfortran libopenblas-dev liblapack-dev && \
     rm -rf /var/lib/apt/lists/*
 
 RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
@@ -179,8 +179,8 @@ RUN wget -q https://bootstrap.pypa.io/get-pip.py -O get-pip.py \
 
 COPY docker/main/requirements.txt /requirements.txt
 RUN pip3 install -r /requirements.txt
-
-
+# Install SQLite3 development library (双保险)
+RUN apt-get update && apt-get install -y libsqlite3-dev
 # Build pysqlite3 from source
 COPY docker/main/build_pysqlite3.sh /build_pysqlite3.sh
 RUN chmod +x /build_pysqlite3.sh && /build_pysqlite3.sh
