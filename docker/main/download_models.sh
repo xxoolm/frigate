@@ -153,19 +153,22 @@ else
         "vocab.txt"
     )
 
-    # 创建模型目录
+    # 创建必要的目录
     mkdir -p "$MODEL_CACHE_DIR/jinaai/jina-clip-v2"
+    mkdir -p "$MODEL_CACHE_DIR/jinaai/jina-clip-v2/tokenizer"  # 本地存储结构保持不变
 
     for file in "${JINA_V2_FILES[@]}"; do
-        if [[ "$file" == tokenizer/* ]] || [[ "$file" == *.json ]] || [[ "$file" == *.txt ]]; then
-            # tokenizer文件在根目录下，不是在tokenizer子目录下
-            # 移除tokenizer/前缀
-            clean_file="${file#tokenizer/}"
-            url="https://huggingface.co/jinaai/jina-clip-v2/resolve/main/$clean_file?download=true"
-        else
+        if [[ "$file" == *.onnx ]]; then
+            # 模型文件在 onnx/ 目录下
             url="https://huggingface.co/jinaai/jina-clip-v2/resolve/main/onnx/$file?download=true"
+        else
+            # tokenizer 文件在根目录
+            url="https://huggingface.co/jinaai/jina-clip-v2/resolve/main/$file?download=true"
         fi
-        download_model "jinaai/jina-clip-v2" "$file" "$url" || echo "⚠️ $file 下载失败，继续..."
+        
+        # 下载到本地的 tokenizer/ 目录
+        local_target_path="tokenizer/$file"
+        download_model "jinaai/jina-clip-v2" "$local_target_path" "$url" || echo "⚠️ $file 下载失败，继续..."
     done
 fi
 
