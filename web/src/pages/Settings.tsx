@@ -55,7 +55,6 @@ const allSettingsViews = [
   "debug",
   "users",
   "notifications",
-  "frigateplus",
 ] as const;
 type SettingsType = (typeof allSettingsViews)[number];
 
@@ -277,9 +276,6 @@ export default function Settings() {
         {page == "users" && <AuthenticationView />}
         {page == "notifications" && (
           <NotificationView setUnsavedChanges={setUnsavedChanges} />
-        )}
-        {page == "frigateplus" && (
-          <FrigatePlusSettingsView setUnsavedChanges={setUnsavedChanges} />
         )}
       </div>
       {confirmationDialogOpen && (
