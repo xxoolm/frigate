@@ -5,6 +5,26 @@
 
 set -euo pipefail
 
+# 依赖检查
+command_exists() {
+	command -v "$1" >/dev/null 2>&1
+}
+
+if ! command_exists wget && ! command_exists curl; then
+	echo "❌ 需要 wget 或 curl，但系统均未安装"
+	exit 1
+fi
+
+# 目录大小显示函数
+show_folder_size() {
+	local path="$1"
+	if [ -d "$path" ]; then
+		local size
+		size=$(du -sh "$path" 2>/dev/null | awk '{print $1}')
+		echo "   - $path: $size"
+	fi
+}
+
 # 添加调试信息
 echo "🔍 调试信息:"
 echo "  - 脚本路径: $0"
@@ -22,14 +42,14 @@ echo "📁 创建模型缓存目录: $MODEL_CACHE_DIR"
 
 # 检查磁盘空间函数
 check_disk_space() {
-    local required_space=$1  # in MB
-    local available_space=$(df -m / | awk 'NR==2 {print $4}')
-    
-    if [ $available_space -lt $required_space ]; then
-        echo "❌ 磁盘空间不足! 需要 ${required_space}MB，当前可用 ${available_space}MB"
-        return 1
-    fi
-    return 0
+	local required_space=$1  # in MB
+	local available_space=$(df -m "$MODEL_CACHE_DIR" | awk 'NR==2 {print $4}')
+	
+	if [ $available_space -lt $required_space ]; then
+		echo "❌ 磁盘空间不足! 需要 ${required_space}MB，当前可用 ${available_space}MB"
+		return 1
+	fi
+	return 0
 }
 
 # 定义模型下载函数（增强版）
