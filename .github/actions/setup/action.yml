@@ -29,30 +29,36 @@ runs:
       run: sudo systemctl start docker
       shell: bash
     # 修复 Docker 目录权限并配置 Buildkit
-    - name: 修复 Docker 目录权限并配置 Buildkit
-      run: |
-        echo " 修复 Docker 目录权限并配置 Buildkit..."
-        # 修复目录权限
-        sudo chmod 775 /var/lib/docker
-        sudo chmod 1777 /var/lib/docker/tmp || true
-        
-        # 确保 Buildkit 使用正确的配置目录
-        if [ -n "${BUILDKITD_CFG_DIR:-}" ]; then
-          echo " 配置 Buildkit 使用指定配置目录: $BUILDKITD_CFG_DIR"
-          mkdir -p "$BUILDKITD_CFG_DIR"
-          chmod 777 "$BUILDKITD_CFG_DIR"
+      - name: 修复 Docker 目录权限并配置 Buildkit
+        run: |
+          echo " 修复 Docker 目录权限并配置 Buildkit..."
+          # 修复目录权限
+          sudo chmod 775 /var/lib/docker
+          sudo chmod 1777 /var/lib/docker/tmp || true
           
-          # 创建 buildkitd 配置文件
-          cat > "$BUILDKITD_CFG_DIR/buildkitd.toml" << EOF
-        [worker.oci]
-          gc = true
-          gc-imports = true
-          gckeepstorage = "10GB"
-          net = "host"
-          snapshotter = "overlayfs"
-        EOF
-        fi
-      shell: bash
+          # 确保 Buildkit 配置目录存在且权限正确（不尝试重新创建已存在的目录）
+          sudo mkdir -p /var/lib/docker/buildkitd-config
+          sudo chmod 777 /var/lib/docker/buildkitd-config
+          
+          # 直接写入配置文件，不尝试创建目录
+          cat > /var/lib/docker/buildkitd-config/buildkitd.toml << EOF
+          [worker.oci]
+            gc = true
+            gc-imports = true
+            gckeepstorage = "10GB"
+            net = "host"
+            snapshotter = "overlayfs"
+          EOF
+          
+          # 验证 Buildkit 配置目录权限
+          echo " 验证 Buildkit 配置目录权限..."
+          if [ ! -w "/var/lib/docker/buildkitd-config" ]; then
+            echo " 无写入权限! 尝试修复..."
+            sudo chmod 777 /var/lib/docker/buildkitd-config
+          fi
+          
+          echo "✅ Buildkit 配置完成"
+        shell: bash
     - id: lowercaseRepo
       uses: ASzc/change-string-case-action@v5
       with:

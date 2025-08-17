@@ -62,47 +62,21 @@ jobs:
         run: |
           echo "🔄 重定向临时目录..."
           
-          # 1. 创建临时目录并设置正确权限
+          # 创建临时目录（在 maximize-build-space 之后）
           sudo mkdir -p /var/lib/docker/tmp
           sudo chmod 1777 /var/lib/docker/tmp
           
-          # 2. 修复关键：确保父目录有适当权限
-          sudo chmod 775 /var/lib/docker
-          
-          # 3. 额外保护：创建并设置 buildkitd 配置目录权限
-          sudo mkdir -p /var/lib/docker/buildkitd-config
-          sudo chmod 777 /var/lib/docker/buildkitd-config
-          
-          # 4. 设置环境变量
+          # 设置环境变量
           echo "TMPDIR=/var/lib/docker/tmp" >> $GITHUB_ENV
           echo "TEMP=/var/lib/docker/tmp" >> $GITHUB_ENV
           echo "TMP=/var/lib/docker/tmp" >> $GITHUB_ENV
-          # 关键：设置 Buildkit 配置目录
-          echo "BUILDKITD_CFG_DIR=/var/lib/docker/buildkitd-config" >> $GITHUB_ENV
           
-          # 5. 验证权限设置
-          echo " 权限验证:"
-          echo "  /var/lib/docker 权限: $(ls -ld /var/lib/docker | awk '{print $1}')"
-          echo "  /var/lib/docker/tmp 权限: $(ls -ld /var/lib/docker/tmp | awk '{print $1}')"
-          echo "  /var/lib/docker/buildkitd-config 权限: $(ls -ld /var/lib/docker/buildkitd-config | awk '{print $1}')"
+          # 显示说明信息
+          echo "✅ 临时目录已设置为 /var/lib/docker/tmp (将在后续步骤生效)"
+          echo "ℹ️  注意：RUNNER_TEMP 和 RUNNER_TOOL_CACHE 是 GitHub Actions 特殊环境变量，无法覆盖"
+          echo "ℹ️  GitHub Actions 会继续使用 $RUNNER_TEMP 作为其工作目录"
           
-          # 6. 测试写入权限
-          echo " 测试写入权限:"
-          if sudo -u nobody touch /var/lib/docker/tmp/testfile 2>/dev/null; then
-            echo "  ✅ /var/lib/docker/tmp 写入测试成功"
-            sudo rm -f /var/lib/docker/tmp/testfile
-          else
-            echo "  ❌ /var/lib/docker/tmp 写入测试失败"
-          fi
-          
-          if sudo -u nobody touch /var/lib/docker/buildkitd-config/testfile 2>/dev/null; then
-            echo "  ✅ /var/lib/docker/buildkitd-config 写入测试成功"
-            sudo rm -f /var/lib/docker/buildkitd-config/testfile
-          else
-            echo "  ❌ /var/lib/docker/buildkitd-config 写入测试失败"
-          fi
-          
-          # 7. 显示磁盘信息
+          # 显示磁盘信息
           echo " 磁盘空间信息:"
           df -h | grep -E "docker|mnt"
       
