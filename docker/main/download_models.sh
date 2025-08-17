@@ -32,6 +32,18 @@ check_disk_space() {
     return 0
 }
 
+# 新增：文件夹大小统计函数
+show_folder_size() {
+    local target_path="$1"
+    if [ -e "$target_path" ]; then
+        local size
+        size=$(du -sh "$target_path" 2>/dev/null | awk '{print $1}')
+        echo "📦 $target_path: $size"
+    else
+        echo "ℹ️  $target_path 不存在"
+    fi
+}
+
 # 定义模型下载函数（增强版）
 download_model() {
     local model_dir="$1"
@@ -44,37 +56,91 @@ download_model() {
     echo "📥 下载 $model_dir/$file_name..."
     mkdir -p "$MODEL_CACHE_DIR/$model_dir"
     
+    # 判断是否为 Hugging Face 链接
+    local is_hf=0
+    if [[ "$url" == *"huggingface.co/"* ]]; then
+        is_hf=1
+    fi
+    
     for ((i=1; i<=max_retries; i++)); do
         echo "🔄 尝试 $i/$max_retries: $url"
         
-        wget -q --show-progress --tries=3 --timeout=600 --continue -O "$target_path" "$url"
-        local wget_exit=$?
-        
-        if [ $wget_exit -eq 0 ]; then
-            # 添加文件完整性检查
-            if [[ "$file_name" == "model_fp16.onnx" ]]; then
-                local expected_size=1688250000  # 1.6GB
-                local actual_size=$(wc -c < "$target_path")
-                if [ $actual_size -lt $((expected_size * 95 / 100)) ]; then
-                    echo "❌ 文件大小异常，可能下载不完整"
-                    rm -f "$target_path"
-                    if [ $i -lt $max_retries ]; then
-                        echo "⏳ $retry_delay 秒后重试..."
-                        sleep $retry_delay
-                        retry_delay=$((retry_delay * 2))  # 指数退避
-                        continue
-                    else
-                        return 1
+        if [ $is_hf -eq 1 ]; then
+            # 对 Hugging Face 使用 curl（支持断点续传、重试、可选鉴权与可选镜像端点）
+            local effective_url="$url"
+            local hf_endpoint="${HF_ENDPOINT:-}"
+            if [[ -n "$hf_endpoint" ]]; then
+                effective_url=${url/https:\/\/huggingface.co/$hf_endpoint}
+            fi
+
+            # 可选：Hugging Face 令牌
+            local auth_header=( )
+            if [[ -n "${HF_TOKEN:-}" ]]; then
+                auth_header=( -H "Authorization: Bearer $HF_TOKEN" )
+            elif [[ -n "${HF_AUTH_TOKEN:-}" ]]; then
+                auth_header=( -H "Authorization: Bearer $HF_AUTH_TOKEN" )
+            fi
+
+            curl -L --fail --retry 5 --retry-delay 5 \
+                 --connect-timeout 30 --continue-at - \
+                 -H "Accept: application/octet-stream" \
+                 "${auth_header[@]}" \
+                 -o "$target_path" "$effective_url"
+            curl_exit=$?
+            if [ $curl_exit -eq 0 ]; then
+                # 添加文件完整性检查
+                if [[ "$file_name" == "model_fp16.onnx" ]]; then
+                    local expected_size=1688250000  # 约1.6GB
+                    local actual_size=$(wc -c < "$target_path")
+                    if [ $actual_size -lt $((expected_size * 95 / 100)) ]; then
+                        echo "❌ 文件大小异常，可能下载不完整"
+                        rm -f "$target_path"
+                        if [ $i -lt $max_retries ]; then
+                            echo "⏳ $retry_delay 秒后重试..."
+                            sleep $retry_delay
+                            retry_delay=$((retry_delay * 2))  # 指数退避
+                            continue
+                        else
+                            return 1
+                        fi
                     fi
                 fi
+                echo "✅ $model_dir/$file_name 下载完成"
+                return 0
+            else
+                echo "⚠️  curl 错误码: $curl_exit"
             fi
-            
-            echo "✅ $model_dir/$file_name 下载完成"
-            return 0
-        elif [ $wget_exit -eq 8 ]; then
-            echo "⚠️  服务器错误 (exit code 8)，可能是网络问题或 Hugging Face 限流"
         else
-            echo "⚠️  wget 错误码: $wget_exit"
+            # 非 Hugging Face 链接默认使用 wget
+            wget -q --show-progress --tries=3 --timeout=600 --continue -O "$target_path" "$url"
+            local wget_exit=$?
+            
+            if [ $wget_exit -eq 0 ]; then
+                # 添加文件完整性检查
+                if [[ "$file_name" == "model_fp16.onnx" ]]; then
+                    local expected_size=1688250000  # 1.6GB
+                    local actual_size=$(wc -c < "$target_path")
+                    if [ $actual_size -lt $((expected_size * 95 / 100)) ]; then
+                        echo "❌ 文件大小异常，可能下载不完整"
+                        rm -f "$target_path"
+                        if [ $i -lt $max_retries ]; then
+                            echo "⏳ $retry_delay 秒后重试..."
+                            sleep $retry_delay
+                            retry_delay=$((retry_delay * 2))  # 指数退避
+                            continue
+                        else
+                            return 1
+                        fi
+                    fi
+                fi
+                
+                echo "✅ $model_dir/$file_name 下载完成"
+                return 0
+            elif [ $wget_exit -eq 8 ]; then
+                echo "⚠️  服务器错误 (exit code 8)，可能是网络问题或 Hugging Face 限流"
+            else
+                echo "⚠️  wget 错误码: $wget_exit"
+            fi
         fi
         
         if [ $i -lt $max_retries ]; then
@@ -84,9 +150,9 @@ download_model() {
         fi
     done
     
-    # 最后尝试使用 curl
-    echo "🔄 尝试使用 curl 下载..."
-    curl -L -o "$target_path" "$url"
+    # 兜底：最后再尝试一次 curl
+    echo "🔄 最后尝试使用 curl 下载..."
+    curl -L --fail --connect-timeout 30 --continue-at - -o "$target_path" "$url"
     if [ $? -eq 0 ]; then
         echo "✅ $model_dir/$file_name 通过 curl 下载完成"
         return 0
