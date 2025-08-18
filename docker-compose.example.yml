@@ -1,0 +1,21 @@
+version: '3.8'
+services:
+  frigate:
+    container_name: frigate
+    image: ghcr.io/xxoolm/frigate/frigate-n150:stable
+    shm_size: "256mb"
+    ports:
+      - "5000:5000"
+      - "8554:8554"
+      - "8555:8555/udp"
+    environment:
+      FRIGATE_RTSP_PASSWORD: "password"
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ./config:/config
+      - ./media:/media/frigate
+      - type: tmpfs
+        target: /tmp/cache
+        tmpfs:
+          size: 1000000000
+    privileged: true

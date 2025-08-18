@@ -8,7 +8,7 @@
 <img src="https://hosted.weblate.org/widget/frigate-nvr/language-badge.svg" alt="Translation status" />
 </a>
 
-\[English\] | [简体中文](https://github.com/blakeblackshear/frigate/blob/dev/README_CN.md)
+[English](README_en.md) | [简体中文](README.md)
 
 A complete and local NVR designed for [Home Assistant](https://www.home-assistant.io) with AI object detection. Uses OpenCV and Tensorflow to perform realtime object detection locally for IP cameras.
 
