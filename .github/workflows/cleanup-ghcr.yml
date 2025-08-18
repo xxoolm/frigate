@@ -14,7 +14,7 @@ jobs:
         with:
           account: user
           token: ${{ secrets.PAT }}
-          image-names: "frigate frigate-n150"
+          image-names: "*"
           image-tags: "!stable !cache-amd64"                  # 排除stable标签
           tag-selection: untagged              # 清理带标签和无标签镜像 both
           cut-off: 1w                      # 删除一周之前的镜像版本，例如 1 week
