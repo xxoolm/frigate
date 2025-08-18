@@ -1,0 +1,22 @@
+name: 清理镜像
+
+on:
+  schedule:
+    - cron: '0 3 * * *'  # 每天 UTC 时间凌晨 3 点触发
+  workflow_dispatch:     # 支持手动触发
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 清洁用于frigate的旧镜像
+        uses: snok/container-retention-policy@v3.0.0
+        with:
+          account: user
+          token: ${{ secrets.PAT }}
+          image-names: "frigate frigate-n150"
+          image-tags: "!stable"                  # 排除stable标签
+          tag-selection: untagged              # 清理带标签和无标签镜像 both
+          cut-off: 1w                      # 删除一周之前的镜像版本，例如 1 week
+          keep-n-most-recent: 6            # 保留每个镜像最新的 2 个版本
+          dry-run: true                    # 先模拟测试，确认结果后改为 false
