@@ -344,11 +344,11 @@ WORKDIR /opt/frigate/
 COPY --from=rootfs / /
 
 # 预下载模型文件
-COPY docker/main/download_models.sh /download_models.sh
-RUN chmod +x /download_models.sh && \
-    /download_models.sh && \
-    rm -f /download_models.sh && \
-    rm -rf /tmp/*
-
+#COPY docker/main/download_models.sh /download_models.sh
+#RUN chmod +x /download_models.sh && \
+#    /download_models.sh && \
+#    rm -f /download_models.sh && \
+#    rm -rf /tmp/*
+RUN cd /opt/frigate/web/locales && ln -s zh-CN zh
 # 复制预配置的配置文件
 COPY docker/main/rootfs/config/config.yml /config/config.yml

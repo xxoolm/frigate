@@ -1,94 +1,119 @@
-# Frigate 默认配置文件
-# 预配置了语义搜索、人脸识别、车牌识别等功能
+audio:
+  enabled: true
+  listen:
+    - fire_alarm
+    - scream
+    - speech
+    - yell
+ #   - bark
+detectors:
+  coral:
+    type: edgetpu
+    device: usb
 
-# 检测配置
-detect:
+logger:
+  # 可选：默认日志级别（默认如下）
+  default: warning
+# 全局FFmpeg配置（推荐）
+ffmpeg:
+  hwaccel_args: preset-vaapi
+#  hwaccel_args: []
+#ffmpeg:
+
+#  hwaccel_args: -hwaccel qsv -hwaccel_device /dev/dri/renderD128 -hwaccel_output_format qsv
+# 记录配置（推荐添加）
+
+
+record:
   enabled: true
 
-# 语义搜索配置
+  retain:
+    days: 7
+    mode: motion
+
+snapshots:
+  enabled: true
+  retain:
+    default: 7
+cameras:
+  hkws:
+    enabled: true
+    ffmpeg:
+      inputs:
+        - path: 
+            rtsp://
+          roles:
+            - detect
+            - record
+            - audio
+      # 硬件加速参数更简洁的写法
+#      hwaccel_args: preset-vaapi
+    detect:
+      width: 704
+      height: 576
+      fps: 10
+      # 启用检测（之前是false）
+      enabled: true
+    zones: {}
+    review:
+      alerts: {}
+      detections: {}
+    objects:
+      # 如果需要车牌识别，添加license_plate
+      track:
+        - person
+        - car
+        # - license_plate
+    motion:
+      threshold: 31
+      contour_area: 10
+      improve_contrast: true
+    audio:
+      enabled: true
+#  name_oshouji3:
+#    enabled: true
+#    ffmpeg:
+#      inputs:
+#        - path: rtsp://192.168.123.76:8080/h264_opus.sdp
+#          roles:
+#            - detect
+ #     hwaccel_args: preset-vaapi
+ #   detect:
+#      width: 1920
+#      height: 1080
+#      fps: 25
+#      enabled: true
+#    objects:
+#      track:
+#        - person
+#        - car
+        # - license_plate
+#      mask: 0.357,0.19,0.34,0.685,0.703,0.723,0.688,0.208
+#    zones:
+#      ddd5151:
+#        coordinates: 0.251,0.238,0.255,0.758,0.627,0.807,0.55,0.201
+#        loitering_time: 0
+#    motion:
+#      threshold: 30
+#      contour_area: 40
+#      improve_contrast: true
+#    indoor_camera:
+#      genai:
+#        enabled: False
+
+    notifications:
+      enabled: true
+detect:
+  enabled: true
 semantic_search:
   enabled: true
   model: jinav2
   model_size: large
-
-# 人脸识别配置
 face_recognition:
   enabled: true
   model_size: large
-  unknown_score: 0.8
-  detection_threshold: 0.7
-  recognition_threshold: 0.9
-  min_area: 750
-  min_faces: 1
-  save_attempts: 100
-  blur_confidence_filter: true
-
-# 车牌识别配置
 lpr:
-  enabled: true
-  device: CPU
-  model_size: small
-  detection_threshold: 0.7
-  min_area: 1000
-  recognition_threshold: 0.9
-  min_plate_length: 4
-  format: null
-  match_distance: 0.5
-  min_plate_characters: 3
-  max_plate_characters: 12
-  debug_save_plates: false
-
-# 分类配置
+  enabled: false
 classification:
   bird:
     enabled: false
-    threshold: 0.9
-
-# 示例摄像头配置（用户需要根据实际情况修改）
-cameras:
-  # 示例摄像头 - 请根据实际情况修改
-  example_camera:
-    ffmpeg:
-      inputs:
-        - path: rtsp://your_camera_ip:554/stream
-          roles:
-            - detect
-            - rtmp
-    detect:
-      height: 1080
-      width: 1920
-      fps: 5
-    # 为摄像头启用人脸识别
-    face_recognition:
-      enabled: true
-      min_area: 750
-    # 为摄像头启用车牌识别
-    lpr:
-      enabled: true
-      enhancement: 0
-
-# MQTT配置（可选）
-mqtt:
-  enabled: false
-  host: mqtt
-  port: 1883
-  topic_prefix: frigate
-  client_id: frigate
-  user: null
-  password: null
-  stats_interval: 60
-
-# 录制配置
-record:
-  enabled: false
-  retain:
-    days: 0
-    mode: motion
-
-# 快照配置
-snapshots:
-  enabled: true
-  retain:
-    default: 10
-    objects:
-      person: 20
