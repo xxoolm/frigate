@@ -13,6 +13,8 @@ Frigate supports multiple different detectors that work on different types of ha
 
 - [Coral EdgeTPU](#edge-tpu-detector): The Google Coral EdgeTPU is available in USB and m.2 format allowing for a wide range of compatibility with devices.
 - [Hailo](#hailo-8): The Hailo8 and Hailo8L AI Acceleration module is available in m.2 format with a HAT for RPi devices, offering a wide range of compatibility with devices.
+- [MemryX](#memryx-mx3): The MX3 Acceleration module is available in m.2 format, offering broad compatibility across various platforms.
+- [DeGirum](#degirum): Service for using hardware devices in the cloud or locally. Hardware and models provided on the cloud on [their website](https://hub.degirum.com).
 
 **AMD**
 
@@ -56,7 +58,7 @@ This does not affect using hardware for accelerating other tasks such as [semant
 
 # Officially Supported Detectors
 
-Frigate provides the following builtin detector types: `cpu`, `edgetpu`, `hailo8l`, `onnx`, `openvino`, `rknn`, and `tensorrt`. By default, Frigate will use a single CPU detector. Other detectors may require additional configuration as described below. When using multiple detectors they will run in dedicated processes, but pull from a common queue of detection requests from across all cameras.
+Frigate provides the following builtin detector types: `cpu`, `edgetpu`, `hailo8l`, `memryx`, `onnx`, `openvino`, `rknn`, and `tensorrt`. By default, Frigate will use a single CPU detector. Other detectors may require additional configuration as described below. When using multiple detectors they will run in dedicated processes, but pull from a common queue of detection requests from across all cameras.
 
 ## Edge TPU Detector
 
@@ -756,6 +758,196 @@ To verify that the integration is working correctly, start Frigate and observe t
 
 # Community Supported Detectors
 
+## MemryX MX3  
+
+This detector is available for use with the MemryX MX3 accelerator M.2 module. Frigate supports the MX3 on compatible hardware platforms, providing efficient and high-performance object detection.  
+
+See the [installation docs](../frigate/installation.md#memryx-mx3) for information on configuring the MemryX hardware.
+
+To configure a MemryX detector, simply set the `type` attribute to `memryx` and follow the configuration guide below.
+
+### Configuration  
+
+To configure the MemryX detector, use the following example configuration:  
+
+#### Single PCIe MemryX MX3  
+
+```yaml
+detectors:
+  memx0:
+    type: memryx
+    device: PCIe:0
+```
+
+#### Multiple PCIe MemryX MX3 Modules
+
+```yaml
+detectors:
+  memx0:
+    type: memryx
+    device: PCIe:0
+
+  memx1:
+    type: memryx
+    device: PCIe:1
+
+  memx2:
+    type: memryx
+    device: PCIe:2
+```
+
+### Supported Models 
+
+MemryX `.dfp` models are automatically downloaded at runtime, if enabled, to the container at `/memryx_models/model_folder/`.
+
+#### YOLO-NAS
+
+The [YOLO-NAS](https://github.com/Deci-AI/super-gradients/blob/master/YOLONAS.md) model included in this detector is downloaded from the [Models Section](#downloading-yolo-nas-model) and compiled to DFP with [mx_nc](https://developer.memryx.com/tools/neural_compiler.html#usage).
+
+**Note:** The default model for the MemryX detector is YOLO-NAS 320x320.
+
+The input size for **YOLO-NAS** can be set to either **320x320** (default) or **640x640**.
+
+- The default size of **320x320** is optimized for lower CPU usage and faster inference times.
+
+##### Configuration  
+
+Below is the recommended configuration for using the **YOLO-NAS** (small) model with the MemryX detector:  
+
+```yaml
+detectors:
+  memx0:
+    type: memryx
+    device: PCIe:0
+
+model:
+  model_type: yolonas
+  width: 320   # (Can be set to 640 for higher resolution)
+  height: 320  # (Can be set to 640 for higher resolution)
+  input_tensor: nchw
+  input_dtype: float
+  labelmap_path: /labelmap/coco-80.txt
+  # Optional: The model is normally fetched through the runtime, so 'path' can be omitted unless you want to use a custom or local model.
+  # path: /config/yolonas.zip
+          # The .zip file must contain:
+          # ├── yolonas.dfp          (a file ending with .dfp)
+          # └── yolonas_post.onnx    (optional; only if the model includes a cropped post-processing network)
+```
+
+#### YOLOv9  
+
+The YOLOv9s model included in this detector is downloaded from [the original GitHub](https://github.com/WongKinYiu/yolov9) like in the [Models Section](#yolov9-1) and compiled to DFP with [mx_nc](https://developer.memryx.com/tools/neural_compiler.html#usage).
+
+##### Configuration
+
+Below is the recommended configuration for using the **YOLOv9** (small) model with the MemryX detector:  
+
+```yaml
+detectors:
+  memx0:
+    type: memryx
+    device: PCIe:0
+
+model:
+  model_type: yolo-generic   
+  width: 320   # (Can be set to 640 for higher resolution)
+  height: 320  # (Can be set to 640 for higher resolution)
+  input_tensor: nchw
+  input_dtype: float
+  labelmap_path: /labelmap/coco-80.txt
+  # Optional: The model is normally fetched through the runtime, so 'path' can be omitted unless you want to use a custom or local model.
+  # path: /config/yolov9.zip
+          # The .zip file must contain:
+          # ├── yolov9.dfp          (a file ending with .dfp)
+          # └── yolov9_post.onnx    (optional; only if the model includes a cropped post-processing network)
+```
+
+#### YOLOX  
+
+The model is sourced from the [OpenCV Model Zoo](https://github.com/opencv/opencv_zoo) and precompiled to DFP.
+
+##### Configuration  
+
+Below is the recommended configuration for using the **YOLOX** (small) model with the MemryX detector:  
+
+```yaml
+detectors:
+  memx0:
+    type: memryx
+    device: PCIe:0
+
+model:
+  model_type: yolox
+  width: 640
+  height: 640
+  input_tensor: nchw
+  input_dtype: float_denorm
+  labelmap_path: /labelmap/coco-80.txt
+  # Optional: The model is normally fetched through the runtime, so 'path' can be omitted unless you want to use a custom or local model.
+  # path: /config/yolox.zip
+          # The .zip file must contain:
+          # ├── yolox.dfp          (a file ending with .dfp)
+```
+
+#### SSDLite MobileNet v2  
+
+The model is sourced from the [OpenMMLab Model Zoo](https://mmdeploy-oss.openmmlab.com/model/mmdet-det/ssdlite-e8679f.onnx) and has been converted to DFP.
+
+##### Configuration  
+
+Below is the recommended configuration for using the **SSDLite MobileNet v2** model with the MemryX detector:  
+
+```yaml
+detectors:
+  memx0:
+    type: memryx
+    device: PCIe:0
+
+model:
+  model_type: ssd
+  width: 320
+  height: 320
+  input_tensor: nchw
+  input_dtype: float
+  labelmap_path: /labelmap/coco-80.txt
+  # Optional: The model is normally fetched through the runtime, so 'path' can be omitted unless you want to use a custom or local model.
+  # path: /config/ssdlite_mobilenet.zip
+          # The .zip file must contain:
+          # ├── ssdlite_mobilenet.dfp          (a file ending with .dfp)
+          # └── ssdlite_mobilenet_post.onnx    (optional; only if the model includes a cropped post-processing network)
+```
+
+#### Using a Custom Model
+
+To use your own model:
+
+1.  Package your compiled model into a `.zip` file.
+
+2.  The `.zip` must contain the compiled `.dfp` file.
+
+3.  Depending on the model, the compiler may also generate a cropped post-processing network. If present, it will be named with the suffix `_post.onnx`.
+
+4.  Bind-mount the `.zip` file into the container and specify its path using `model.path` in your config.
+
+5.  Update the `labelmap_path` to match your custom model's labels.
+
+For detailed instructions on compiling models, refer to the [MemryX Compiler](https://developer.memryx.com/tools/neural_compiler.html#usage) docs and [Tutorials](https://developer.memryx.com/tutorials/tutorials.html).
+
+```yaml
+  # The detector automatically selects the default model if nothing is provided in the config.
+  #
+  # Optionally, you can specify a local model path as a .zip file to override the default.
+  # If a local path is provided and the file exists, it will be used instead of downloading.
+  #
+  # Example:
+  # path: /config/yolonas.zip
+  #
+  # The .zip file must contain:
+  # ├── yolonas.dfp          (a file ending with .dfp)
+  # └── yolonas_post.onnx    (optional; only if the model includes a cropped post-processing network)
+```
+---
+
 ## NVidia TensorRT Detector
 
 Nvidia Jetson devices may be used for object detection using the TensorRT libraries. Due to the size of the additional libraries, this detector is only provided in images with the `-tensorrt-jp6` tag suffix, e.g. `ghcr.io/blakeblackshear/frigate:stable-tensorrt-jp6`. This detector is designed to work with Yolo models for object detection.
@@ -1006,6 +1198,101 @@ Explanation of the paramters:
   - `tk_version`: Version of `rknn-toolkit2` (e.g. "2.3.0")
   - **example**: Specifying `output_name = "frigate-{quant}-{input_basename}-{soc}-v{tk_version}"` could result in a model called `frigate-i8-my_model-rk3588-v2.3.0.rknn`.
 - `config`: Configuration passed to `rknn-toolkit2` for model conversion. For an explanation of all available parameters have a look at section "2.2. Model configuration" of [this manual](https://github.com/MarcA711/rknn-toolkit2/releases/download/v2.3.2/03_Rockchip_RKNPU_API_Reference_RKNN_Toolkit2_V2.3.2_EN.pdf).
+
+## DeGirum
+
+DeGirum is a detector that can use any type of hardware listed on [their website](https://hub.degirum.com). DeGirum can be used with local hardware through a DeGirum AI Server, or through the use of `@local`. You can also connect directly to DeGirum's AI Hub to run inferences. **Please Note:** This detector *cannot* be used for commercial purposes.
+
+### Configuration
+
+#### AI Server Inference
+
+Before starting with the config file for this section, you must first launch an AI server. DeGirum has an AI server ready to use as a docker container. Add this to your `docker-compose.yml` to get started:
+```yaml
+degirum_detector:
+    container_name: degirum
+    image: degirum/aiserver:latest
+    privileged: true
+    ports:
+      - "8778:8778"
+```
+All supported hardware will automatically be found on your AI server host as long as relevant runtimes and drivers are properly installed on your machine. Refer to [DeGirum's docs site](https://docs.degirum.com/pysdk/runtimes-and-drivers) if you have any trouble.
+
+Once completed, changing the `config.yml` file is simple.
+```yaml
+degirum_detector:
+    type: degirum
+    location: degirum # Set to service name (degirum_detector), container_name (degirum), or a host:port (192.168.29.4:8778)
+    zoo: degirum/public # DeGirum's public model zoo. Zoo name should be in format "workspace/zoo_name". degirum/public is available to everyone, so feel free to use it if you don't know where to start. If you aren't pulling a model from the AI Hub, leave this and 'token' blank.
+    token: dg_example_token # For authentication with the AI Hub. Get this token through the "tokens" section on the main page of the [AI Hub](https://hub.degirum.com). This can be left blank if you're pulling a model from the public zoo and running inferences on your local hardware using @local or a local DeGirum AI Server
+```
+Setting up a model in the `config.yml` is similar to setting up an AI server.
+You can set it to:
+- A model listed on the [AI Hub](https://hub.degirum.com), given that the correct zoo name is listed in your detector
+    - If this is what you choose to do, the correct model will be downloaded onto your machine before running.
+- A local directory acting as a zoo. See DeGirum's docs site [for more information](https://docs.degirum.com/pysdk/user-guide-pysdk/organizing-models#model-zoo-directory-structure).
+- A path to some model.json.
+```yaml
+model:
+    path: ./mobilenet_v2_ssd_coco--300x300_quant_n2x_orca1_1 # directory to model .json and file
+    width: 300 # width is in the model name as the first number in the "int"x"int" section
+    height: 300 # height is in the model name as the second number in the "int"x"int" section
+    input_pixel_format: rgb/bgr # look at the model.json to figure out which to put here
+```
+
+
+#### Local Inference
+
+It is also possible to eliminate the need for an AI server and run the hardware directly. The benefit of this approach is that you eliminate any bottlenecks that occur when transferring prediction results from the AI server docker container to the frigate one. However, the method of implementing local inference is different for every device and hardware combination, so it's usually more trouble than it's worth. A general guideline to achieve this would be:
+1. Ensuring that the frigate docker container has the runtime you want to use. So for instance, running `@local` for Hailo means making sure the container you're using has the Hailo runtime installed.
+2. To double check the runtime is detected by the DeGirum detector, make sure the `degirum sys-info` command properly shows whatever runtimes you mean to install.
+3. Create a DeGirum detector in your `config.yml` file.
+
+```yaml
+degirum_detector:
+    type: degirum
+    location: "@local" # For accessing AI Hub devices and models
+    zoo: degirum/public # DeGirum's public model zoo. Zoo name should be in format "workspace/zoo_name". degirum/public is available to everyone, so feel free to use it if you don't know where to start.
+    token: dg_example_token # For authentication with the AI Hub. Get this token through the "tokens" section on the main page of the [AI Hub](https://hub.degirum.com). This can be left blank if you're pulling a model from the public zoo and running inferences on your local hardware using @local or a local DeGirum AI Server
+
+```
+
+Once `degirum_detector` is setup, you can choose a model through 'model' section in the `config.yml` file.
+
+```yaml
+model:
+    path: mobilenet_v2_ssd_coco--300x300_quant_n2x_orca1_1
+    width: 300 # width is in the model name as the first number in the "int"x"int" section
+    height: 300 # height is in the model name as the second number in the "int"x"int" section
+    input_pixel_format: rgb/bgr # look at the model.json to figure out which to put here
+```
+
+
+#### AI Hub Cloud Inference
+
+If you do not possess whatever hardware you want to run, there's also the option to run cloud inferences. Do note that your detection fps might need to be lowered as network latency does significantly slow down this method of detection. For use with Frigate, we highly recommend using a local AI server as described above. To set up cloud inferences,
+1. Sign up at [DeGirum's AI Hub](https://hub.degirum.com).
+2. Get an access token.
+3. Create a DeGirum detector in your `config.yml` file.
+
+```yaml
+degirum_detector:
+    type: degirum
+    location: "@cloud" # For accessing AI Hub devices and models
+    zoo: degirum/public # DeGirum's public model zoo. Zoo name should be in format "workspace/zoo_name". degirum/public is available to everyone, so feel free to use it if you don't know where to start.
+    token: dg_example_token # For authentication with the AI Hub. Get this token through the "tokens" section on the main page of the (AI Hub)[https://hub.degirum.com).
+
+```
+
+Once `degirum_detector` is setup, you can choose a model through 'model' section in the `config.yml` file.
+
+```yaml
+model:
+    path: mobilenet_v2_ssd_coco--300x300_quant_n2x_orca1_1
+    width: 300 # width is in the model name as the first number in the "int"x"int" section
+    height: 300 # height is in the model name as the second number in the "int"x"int" section
+    input_pixel_format: rgb/bgr # look at the model.json to figure out which to put here
+```
 
 # Models
 
